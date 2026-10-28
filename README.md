@@ -1,4 +1,4 @@
-# Bilva's Fastener Finder
+#Fastener Finder
 
 Find the fastener Google already stocks before creating a new GPN. Type it the way you'd say it
 (`m3 x 8 pan phillips`) or paste a GPN or supplier part number. If nothing fits, the app writes the
