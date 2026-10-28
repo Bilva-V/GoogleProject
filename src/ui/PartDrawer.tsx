@@ -52,13 +52,14 @@ interface DrawerProps {
 }
 
 export function PartDrawer({ hit, onClose, onOpenGpn, onBack }: DrawerProps) {
-  const { catalog } = useStore();
+  const { catalog, flagged, flag, reviews, go } = useStore();
   const { part, preferred, members } = hit;
   const spec = part.spec;
   const std = standardDescription(spec);
   const family = spec.family!;
   const checks = new Map<Attr, Check>(hit.checks.map((c) => [c.attr, c]));
   const related = catalog.groups.filter((g) => g.kind !== 'duplicate' && g.kind !== 'pack' && g.gpns.some((x) => part.gpns.includes(x)));
+  const groups = catalog.groups.filter((g) => g.gpns.some((x) => part.gpns.includes(x)));
   const others = members.filter((m) => m.gpn !== preferred.gpn);
   const byGpn = new Map(catalog.parts.map((p) => [p.gpn, p]));
   const conflict = related.find((g) => g.kind === 'conflict');
@@ -171,6 +172,45 @@ export function PartDrawer({ hit, onClose, onOpenGpn, onBack }: DrawerProps) {
               </ul>
             </div>
           ))}
+        </section>
+      ) : null}
+      {groups.length ? (
+        <section className="drawer-section">
+          <h3>Clean up</h3>
+          <p className="related-rule">Think these GPNs should be consolidated, or one record is wrong? Send the group to the review queue.</p>
+          <ul className="review-list">
+            {groups.map((g) => {
+              const decided = reviews[g.id]?.decision;
+              const sent = flagged.includes(g.id);
+              return (
+                <li key={g.id}>
+                  <span className={`tag tag-${g.kind}`}>{KIND_ONE[g.kind]}</span>
+                  <span className="review-what">{g.gpns.join(', ')}</span>
+                  {decided ? (
+                    <span className="meta-note">Reviewed</span>
+                  ) : sent ? (
+                    <span className="meta-note">
+                      <Icon name="check" size={16} /> In the queue
+                    </span>
+                  ) : (
+                    <button type="button" className="btn btn-quiet" onClick={() => flag(g.id)}>
+                      Send to Clean up
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="link"
+                    onClick={() => {
+                      onClose();
+                      go({ page: 'cleanup', kind: g.kind });
+                    }}
+                  >
+                    Open
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         </section>
       ) : null}
     </Sheet>

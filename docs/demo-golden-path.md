@@ -68,7 +68,9 @@ Point at the three figures at the bottom of the start screen, and the four blank
 
 > "1094168 and 1106617 have nearly the same supplier part number, but one is Phillips and one is Torx. They aren't duplicates, so we call them a variant. They're a candidate if Google wants to standardise on one drive."
 
-**Do:** Click the **copy icon** next to 1106617. *"Copied 1106617"* appears. Press **Esc**.
+**Do:** Click the **copy icon** next to 1106617. *"Copied 1106617"* appears.
+
+**Do:** Scroll to the bottom of the panel. Under **Clean up**, press **Send to Clean up** on the duplicate group. A red **1** appears on Clean up in the rail. Press **Esc**.
 
 ---
 
@@ -126,7 +128,7 @@ Point at the three figures at the bottom of the start screen, and the four blank
 
 **Do:** Click **Clean up** in the rail.
 
-**Expect:** Tabs **Duplicates 53 · Pack sizes 5 · Near sizes 8 · Variants 2 · Conflicting records 1**, with *Google's rule* in the blue bar above each.
+**Expect:** Tabs **Duplicates 53 · Pack sizes 5 · Near sizes 8 · Variants 2 · Conflicting records 1**, with *Google's rule* in the blue bar above each. The group you sent in Stop 2 (1106617 / 1249277) is first, tagged **Sent from Find**.
 
 > "This list is for your team, not the engineer: 69 groups of GPNs that may be the same fastener, each with a suggested GPN to keep."
 
@@ -134,7 +136,9 @@ Point at the three figures at the bottom of the start screen, and the four blank
 
 > "Per your guidance, single and bulk stay separate GPNs, but we treat them as one part and add their volumes together."
 
-**Do:** Click **Duplicates**. On the first group, select **2006186** under *Keep*, press **Consolidate**, and type a note. The progress bar moves to 1 of 53.
+**Do:** On the sent group, press **Needs a check**. Tick **Engineering sign-off** in the evidence list that appears. Press **Next group →**.
+
+**Do:** On the next group, select **2006186** under *Keep*, press **Consolidate**, and type a note. The progress bar moves to 2 of 53.
 
 **Do:** Click **Find** and search **`2006186`**. Open it.
 
@@ -148,7 +152,7 @@ Point at the three figures at the bottom of the start screen, and the four blank
 
 **Do:** Click **Find** and search **`m3 x 8 pan phillips`**.
 
-**Expect:** **07052664 (4,800 ordered)** now ranks first. On `m3 x 8 pan torx`, 1106617 shows **3,050 ordered**: both duplicate GPNs combined.
+**Expect:** **07052664 (4,800 ordered)** now ranks first, tagged **High runner**. Above the results, a strip says *07052664 takes 76% of the 6,300 ordered across 3 parts that fit*. On `m3 x 8 pan torx`, 1106617 shows **3,050 ordered**: both duplicate GPNs combined.
 
 > "That's your preference for high runners, applied the moment the vendor volumes arrive."
 
@@ -167,7 +171,7 @@ Point at the three figures at the bottom of the start screen, and the four blank
 | Question | Answer |
 |---|---|
 | Is this live Agile data? | No. It's the October 2026 export, bundled into the app. An independent check confirms all 1,155 parts match the spreadsheet exactly. |
-| How does it read the specs? | Fixed rules on the description text, no AI model. Covered by 60 tests. |
+| How does it read the specs? | Fixed rules on the description text, no AI model. Covered by 63 tests. |
 | Why are some details "not stated"? | The description doesn't say them. 44% of fastener descriptions miss a key field; that's the case for the description standard. |
 | Does it decide what's interchangeable? | No. It labels candidates; an engineer or Google makes the call. |
 | Why does volume say "not loaded"? | We're waiting on vendor volumes. The ranking already uses volume when it's there, as Stop 6 shows. |

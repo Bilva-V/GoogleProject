@@ -2,7 +2,7 @@ import type { Catalog, PartRecord, Phase } from '../src/engine/types';
 import { parseDescription, parseQuery } from '../src/engine/parse';
 import { findGroups, normDesc, physicalParts } from '../src/engine/groups';
 import { computeHealth } from '../src/engine/health';
-import { DEFAULT_SCOPE, check, closest, findByNumber, numberSuggestions, search } from '../src/engine/search';
+import { DEFAULT_SCOPE, check, closest, findByNumber, numberPrefixMatches, numberSuggestions, search, volumeTiers } from '../src/engine/search';
 import { withReviews } from '../src/ui/store';
 import { inchFraction, standardDescription } from '../src/engine/standard';
 
@@ -172,5 +172,30 @@ describe('found in the demo run (Oct 28)', () => {
     expect(c.physical[0].preferred).toBe('4001');
     const reviewed = withReviews(c, { [c.groups[0].id]: { decision: 'consolidate', preferred: '4002', note: '' } });
     expect(reviewed.physical[0]).toMatchObject({ preferred: '4002', chosenInReview: true });
+  });
+});
+
+describe('ideas from the team prototypes (Oct 28)', () => {
+  it('scales the near-size tolerance with size (Valentina): 0.25 mm, or 3% when larger', () => {
+    expect(check('odMm', 22.225, 22.733)).toBe('near'); // 0.508 mm on a 22 mm OD
+    expect(check('idMm', 5.4, 5.5)).toBe('near');
+    expect(check('idMm', 5.4, 5.8)).toBe('differs');
+  });
+  it('finds parts whose supplier number starts with what was typed (Valentina)', () => {
+    const c = catalog([
+      rec('5001', 'Washer, External Tooth, #10, Steel', { type: 'Fastener-Washers', mpns: ['91114A011'] }),
+      rec('5002', 'Washer, External Tooth, #8, Steel', { type: 'Fastener-Washers', mpns: ['91114A010'] }),
+    ]);
+    expect(findByNumber(c, '91114')).toHaveLength(0);
+    expect(numberPrefixMatches(c, '91114').parts).toHaveLength(2);
+  });
+  it('tiers parts by volume against every part with volume (Ishan)', () => {
+    const parts = Array.from({ length: 10 }, (_, i) => rec(`60${i}`, `Screw, M${i + 2}x0.5mm Thread, 8mm Long, Pan Head`, { volume: [10000, 5000, 3000, 2000, 1000, 800, 600, 400, 300, 100][i] }));
+    const t = volumeTiers(catalog(parts));
+    const tierOf = (gpn: string) => t.get(catalog(parts).physical.find((p) => p.preferred === gpn)!.id);
+    expect(tierOf('600')).toBe('high');
+    expect(tierOf('601')).toBe('high');
+    expect(tierOf('602')).toBe('regular');
+    expect(tierOf('609')).toBe('low');
   });
 });

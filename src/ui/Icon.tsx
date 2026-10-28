@@ -7,6 +7,7 @@ import Tune from '@material-symbols/svg-400/rounded/tune.svg?raw';
 import Add from '@material-symbols/svg-400/rounded/add.svg?raw';
 import ContentCopy from '@material-symbols/svg-400/rounded/content_copy.svg?raw';
 import ArrowBack from '@material-symbols/svg-400/rounded/arrow_back.svg?raw';
+import ArrowForward from '@material-symbols/svg-400/rounded/arrow_forward.svg?raw';
 import Download from '@material-symbols/svg-400/rounded/download.svg?raw';
 import Upload from '@material-symbols/svg-400/rounded/upload.svg?raw';
 import Check from '@material-symbols/svg-400/rounded/check.svg?raw';
@@ -30,6 +31,7 @@ const ICONS = {
   add: Add,
   content_copy: ContentCopy,
   arrow_back: ArrowBack,
+  arrow_forward: ArrowForward,
   download: Download,
   upload: Upload,
   check: Check,

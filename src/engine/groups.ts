@@ -5,8 +5,13 @@ import type { Attr, Evidence, Group, GroupKind, PartRecord, Phase, PhysicalPart,
 import { NUMERIC_ATTRS, PHASES } from './types';
 import { stripPack } from './parse';
 
-/** Sizes within this many millimetres are a near match (Google: 5.4 vs 5.5 mm). */
+/**
+ * Sizes this close are a near match (Google: 5.4 vs 5.5 mm): 0.25 mm, or 3% of the size
+ * when that is more, so a 22.2 mm washer OD is near 22.7 mm the way a 5.4 mm ID is near 5.5 mm.
+ */
 export const NEAR_MM = 0.25;
+export const NEAR_REL = 0.03;
+export const nearTolerance = (mm: number) => Math.max(NEAR_MM, NEAR_REL * Math.abs(mm));
 
 /** Attributes compared when deciding whether two records disagree. */
 export const COMPARED: Attr[] = [
@@ -22,7 +27,7 @@ export function isNear(a: Attr, x: unknown, y: unknown): boolean {
   if (!NUMERIC_ATTRS.has(a) || a === 'pitch') return false;
   if (typeof x !== 'number' || typeof y !== 'number') return false;
   const d = Math.abs(x - y);
-  return d > 0.001 && d <= NEAR_MM + 0.001;
+  return d > 0.001 && d <= nearTolerance(Math.min(x, y)) + 0.001;
 }
 
 /**

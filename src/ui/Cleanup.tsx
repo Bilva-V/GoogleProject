@@ -6,7 +6,8 @@ import { useState } from 'react';
 import { Icon } from './Icon';
 import type { Group, GroupKind, PartRecord } from '../engine/types';
 import { ATTR_LABEL } from '../engine/types';
-import { useStore, Decision, Review } from './store';
+import { useStore, Decision, Review, EVIDENCE_NEEDED } from './store';
+import { toast } from './toast';
 import { Gpn } from './Gpn';
 import { downloadCsv, formatValue, plural } from './format';
 import { KIND_DEFAULT, KIND_LABEL, KIND_RULE, groupSummary } from './rules';
@@ -20,9 +21,16 @@ const DECISIONS: { id: Decision; label: string }[] = [
 ];
 
 export function Cleanup({ kind }: { kind: GroupKind }) {
-  const { catalog, reviews, go } = useStore();
-  const groups = catalog.groups.filter((g) => g.kind === kind);
+  const { catalog, reviews, flagged, go } = useStore();
   const reviewed = (g: Group) => Boolean(reviews[g.id]?.decision);
+  // Groups an engineer sent from Find come first, and stay there once decided so the card
+  // being worked on doesn't jump away.
+  const sentFirst = (g: Group) => (flagged.includes(g.id) ? flagged.indexOf(g.id) : Infinity);
+  const groups = catalog.groups
+    .filter((g) => g.kind === kind)
+    .map((g, i) => ({ g, i }))
+    .sort((a, b) => sentFirst(a.g) - sentFirst(b.g) || a.i - b.i)
+    .map(({ g }) => g);
   const done = groups.filter(reviewed).length;
   // Groups decided while the filter is on stay in view until the filter is turned off,
   // so a decision doesn't make the card jump away under the pointer.
@@ -31,9 +39,29 @@ export function Cleanup({ kind }: { kind: GroupKind }) {
   const shown = unreviewedOnly ? groups.filter((g) => !reviewed(g) || seen.has(g.id)) : groups;
   const allDone = catalog.groups.filter(reviewed).length;
 
+  /** Move to the next group without a decision: later in this tab, else the next tab that has one. */
+  const next = (from: Group) => {
+    const here = groups.slice(groups.indexOf(from) + 1).find((g) => !reviewed(g) && g.id !== from.id);
+    if (here) {
+      const el = document.getElementById(`group-${here.id}`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      el?.querySelector<HTMLButtonElement>('.segmented button')?.focus({ preventScroll: true });
+      return;
+    }
+    const order = KINDS.slice(KINDS.indexOf(kind) + 1).concat(KINDS.slice(0, KINDS.indexOf(kind) + 1));
+    const other = order.find((k) => catalog.groups.some((g) => g.kind === k && !reviewed(g) && g.id !== from.id));
+    if (other && other !== kind) {
+      go({ page: 'cleanup', kind: other }, true);
+      window.scrollTo({ top: 0 });
+      toast(`On to ${KIND_LABEL[other].toLowerCase()}`);
+    } else toast('Every group has a decision. Export them when you’re ready.');
+  };
+
   const exportCsv = () => {
     const byGpn = new Map(catalog.parts.map((p) => [p.gpn, p]));
-    const rows: (string | number | null)[][] = [['Group', 'Kind', 'Evidence', 'GPNs', 'Keep GPN', 'Decision', 'Reviewed', 'Note', 'Descriptions']];
+    const rows: (string | number | null)[][] = [
+      ['Group', 'Kind', 'Evidence', 'GPNs', 'Keep GPN', 'Decision', 'Reviewed', 'Evidence needed', 'Sent from Find', 'Note', 'Descriptions'],
+    ];
     for (const g of catalog.groups) {
       const r = reviews[g.id];
       rows.push([
@@ -44,6 +72,8 @@ export function Cleanup({ kind }: { kind: GroupKind }) {
         r?.preferred ?? g.preferred,
         r?.decision ?? KIND_DEFAULT[g.kind],
         r?.decision ? 'yes' : 'no',
+        r?.decision === 'check' ? (r.evidence ?? []).join('; ') : '',
+        flagged.includes(g.id) ? 'yes' : 'no',
         r?.note ?? '',
         g.gpns.map((x) => `${x}: ${byGpn.get(x)?.description ?? ''}`).join(' | '),
       ]);
@@ -79,6 +109,9 @@ export function Cleanup({ kind }: { kind: GroupKind }) {
               }}
             >
               {KIND_LABEL[k]} <span className="num tab-n">{n}</span>
+              {catalog.groups.some((g) => g.kind === k && flagged.includes(g.id) && !reviewed(g)) ? (
+                <span className="tab-sent" title="Has groups sent from Find" />
+              ) : null}
             </a>
           );
         })}
@@ -117,7 +150,7 @@ export function Cleanup({ kind }: { kind: GroupKind }) {
       ) : groups.length ? (
         <div className="groups">
           {shown.map((g) => (
-            <GroupCard key={g.id} group={g} review={reviews[g.id]} />
+            <GroupCard key={g.id} group={g} review={reviews[g.id]} sent={flagged.includes(g.id)} onNext={() => next(g)} />
           ))}
         </div>
       ) : (
@@ -127,7 +160,7 @@ export function Cleanup({ kind }: { kind: GroupKind }) {
   );
 }
 
-function GroupCard({ group: g, review }: { group: Group; review?: Review }) {
+function GroupCard({ group: g, review, sent, onNext }: { group: Group; review?: Review; sent: boolean; onNext: () => void }) {
   const { catalog, setReview } = useStore();
   const byGpn = new Map(catalog.parts.map((p) => [p.gpn, p]));
   const members = g.gpns.map((x) => byGpn.get(x)).filter((p): p is PartRecord => Boolean(p));
@@ -136,8 +169,9 @@ function GroupCard({ group: g, review }: { group: Group; review?: Review }) {
   const suggested = KIND_DEFAULT[g.kind];
 
   return (
-    <article className={`group-card${decision ? ' is-done' : ''}`}>
+    <article className={`group-card${decision ? ' is-done' : ''}`} id={`group-${g.id}`}>
       <header className="group-head">
+        {sent ? <span className="tag tag-sent">Sent from Find</span> : null}
         <h2>{groupSummary(g)}</h2>
       </header>
 
@@ -222,6 +256,27 @@ function GroupCard({ group: g, review }: { group: Group; review?: Review }) {
           onChange={(e) => setReview(g.id, { note: e.target.value })}
           aria-label="Note"
         />
+        <button type="button" className="btn btn-quiet next-group" onClick={onNext}>
+          Next group <Icon name="arrow_forward" size={18} />
+        </button>
+        {decision === 'check' ? (
+          <fieldset className="evidence">
+            <legend>What's needed before deciding?</legend>
+            {EVIDENCE_NEEDED.map((e) => {
+              const have = review?.evidence ?? [];
+              return (
+                <label key={e} className="check">
+                  <input
+                    type="checkbox"
+                    checked={have.includes(e)}
+                    onChange={(ev) => setReview(g.id, { evidence: ev.target.checked ? [...have, e] : have.filter((x) => x !== e) })}
+                  />
+                  {e}
+                </label>
+              );
+            })}
+          </fieldset>
+        ) : null}
       </footer>
     </article>
   );

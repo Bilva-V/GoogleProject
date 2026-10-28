@@ -28,7 +28,9 @@ export function Mark() {
 }
 
 export function App() {
-  const { route, go, catalog, volumes } = useStore();
+  const { route, go, catalog, volumes, flagged, reviews } = useStore();
+  // Groups sent from Find that nobody has decided yet.
+  const waiting = flagged.filter((id) => !reviews[id]?.decision).length;
   // Find in the rail returns to the last search rather than wiping it.
   const lastFind = useRef('');
   if (route.page === 'find') lastFind.current = route.q;
@@ -90,6 +92,11 @@ export function App() {
             >
               <span className="rail-pill">
                 <Icon name={current ? (`${n.icon}-fill` as IconName) : n.icon} size={24} />
+                {n.page === 'cleanup' && waiting ? (
+                  <span className="rail-badge" aria-label={`${waiting} sent from Find`}>
+                    {waiting}
+                  </span>
+                ) : null}
               </span>
               <span className="rail-label">{n.label}</span>
             </a>

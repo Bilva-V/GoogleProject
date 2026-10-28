@@ -7,6 +7,7 @@ import raw from '../generated/catalog.json';
 import type { Catalog, GroupKind } from '../engine/types';
 import { findGroups, physicalParts } from '../engine/groups';
 import { computeHealth } from '../engine/health';
+import { volumeTiers, VolumeTier } from '../engine/search';
 
 export const BASE = raw as unknown as Catalog;
 
@@ -59,7 +60,12 @@ export interface Review {
   decision: Decision | null;
   preferred: string | null;
   note: string;
+  /** with 'check': what's needed before deciding */
+  evidence?: string[];
 }
+
+/** What a reviewer can ask for before deciding a group (from Valentina's prototype). */
+export const EVIDENCE_NEEDED = ['Agile supplier part number for each GPN', 'Datasheet or catalog spec', 'Engineering sign-off'];
 
 export type Route =
   | { page: 'find'; q: string }
@@ -95,12 +101,18 @@ interface Store {
   setVolumes: (v: Map<string, number>) => void;
   reviews: Record<string, Review>;
   setReview: (groupId: string, r: Partial<Review>) => void;
+  /** groups an engineer sent to Clean up from a part panel, newest first */
+  flagged: string[];
+  flag: (groupId: string) => void;
+  /** high / regular / low runner per physical part, once volumes are loaded */
+  tiers: Map<string, VolumeTier>;
   route: Route;
   go: (r: Route, replace?: boolean) => void;
 }
 
 const Ctx = createContext<Store | null>(null);
 const REVIEWS_KEY = 'fastener-finder.reviews.v1';
+const FLAGGED_KEY = 'fastener-finder.flagged.v1';
 
 function loadReviews(): Record<string, Review> {
   try {
@@ -113,6 +125,13 @@ function loadReviews(): Record<string, Review> {
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [volumes, setVolumes] = useState<Map<string, number>>(new Map());
   const [reviews, setReviews] = useState<Record<string, Review>>(loadReviews);
+  const [flagged, setFlagged] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(FLAGGED_KEY) || '[]');
+    } catch {
+      return [];
+    }
+  });
   const [route, setRoute] = useState<Route>(() => parseHash(location.hash));
   const catalog = useMemo(() => withReviews(withVolumes(BASE, volumes), reviews), [volumes, reviews]);
 
@@ -138,7 +157,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const value = useMemo(() => ({ catalog, volumes, setVolumes, reviews, setReview, route, go }), [catalog, volumes, reviews, setReview, route, go]);
+  const flag = useCallback((id: string) => {
+    setFlagged((prev) => {
+      if (prev.includes(id)) return prev;
+      const next = [id, ...prev];
+      try { localStorage.setItem(FLAGGED_KEY, JSON.stringify(next)); } catch { /* keep in memory */ }
+      return next;
+    });
+  }, []);
+
+  const tiers = useMemo(() => volumeTiers(catalog), [catalog]);
+  const value = useMemo(
+    () => ({ catalog, volumes, setVolumes, reviews, setReview, flagged, flag, tiers, route, go }),
+    [catalog, volumes, reviews, setReview, flagged, flag, tiers, route, go]
+  );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

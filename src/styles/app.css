@@ -397,6 +397,17 @@ a {
   color: var(--md-on-warn-container);
 }
 
+.tag-high {
+  background: var(--md-primary-container);
+  color: var(--md-on-primary-container);
+}
+
+.tag-sent {
+  margin-bottom: 8px;
+  background: var(--md-secondary-container);
+  color: var(--md-on-secondary-container);
+}
+
 .tag-variant {
   background: var(--md-secondary-container);
   color: var(--md-on-secondary-container);
@@ -540,6 +551,22 @@ input[type='radio'] {
   height: 32px;
   border-radius: 16px;
   transition: background 200ms var(--ease);
+}
+
+.rail-badge {
+  position: absolute;
+  top: -2px;
+  left: 32px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--md-error);
+  color: var(--md-surface-lowest);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  text-align: center;
 }
 
 .rail-label {
@@ -827,6 +854,11 @@ input[type='radio'] {
   margin-top: 4px;
   font-size: 28px;
   line-height: 36px;
+}
+
+.start-number {
+  margin-top: 12px;
+  color: var(--md-on-surface-variant);
 }
 
 .start-note {
@@ -1887,6 +1919,107 @@ td.is-missing,
   color: var(--md-on-surface-variant);
 }
 
+.review-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--md-divider);
+}
+
+.review-list li:first-child {
+  border-top: 0;
+}
+
+.review-what {
+  flex: 1;
+  min-width: 140px;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.review-list .meta-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* How orders split across the parts that fit */
+.vshare {
+  margin-bottom: 28px;
+  padding: 16px 20px;
+  border: 1px solid var(--md-divider);
+  border-radius: 16px;
+  background: var(--md-surface-lowest);
+}
+
+.vshare-head strong {
+  font-family: var(--mono);
+  font-weight: 500;
+}
+
+.vshare-strip {
+  display: flex;
+  gap: 2px;
+  height: 12px;
+  margin: 12px 0;
+}
+
+.vshare-seg {
+  min-width: 3px;
+  border-radius: 3px;
+}
+
+.vshare-seg:first-child {
+  border-radius: 6px 3px 3px 6px;
+}
+
+.vshare-seg:last-child {
+  border-radius: 3px 6px 6px 3px;
+}
+
+.vshare-0 {
+  background: var(--md-primary);
+}
+
+.vshare-1 {
+  background: var(--md-blue-300);
+}
+
+.vshare-2 {
+  background: var(--md-primary-container);
+}
+
+.vshare-3 {
+  background: color-mix(in srgb, var(--md-primary-container) 50%, var(--md-surface-highest));
+}
+
+.vshare-4 {
+  background: var(--md-surface-highest);
+}
+
+.vshare-legend {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.vshare-legend li {
+  display: grid;
+  grid-template-columns: 12px 1fr auto 48px;
+  align-items: center;
+  gap: 10px;
+}
+
+.vshare-legend .num {
+  text-align: right;
+}
+
+.vshare-pct {
+  color: var(--md-on-surface-variant);
+}
+
 .compare-head {
   padding-right: 40px;
   margin-bottom: 16px;
@@ -2230,6 +2363,13 @@ td.is-missing,
   text-align: center;
 }
 
+.tab-sent {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--md-error);
+}
+
 .tabs [aria-current='page'] .tab-n {
   background: var(--md-primary);
   color: var(--md-on-primary);
@@ -2375,6 +2515,32 @@ td.is-missing,
   gap: 12px;
   padding: 16px 24px 20px;
   border-top: 1px solid var(--md-divider);
+}
+
+.next-group {
+  margin-left: auto;
+}
+
+.next-group .icon {
+  margin: 0 -8px 0 0;
+}
+
+.evidence {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 24px;
+  margin: 0;
+  padding: 4px 0 0;
+  border: 0;
+}
+
+.evidence legend {
+  padding: 0;
+  margin-bottom: 4px;
+  color: var(--md-on-surface-variant);
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .suggested {
@@ -2882,6 +3048,42 @@ td.is-missing,
   }
   .members {
     table-layout: auto;
+  }
+  /* Phase and volume are in the part panel; on a phone the description needs the width. */
+  .members th:nth-child(4),
+  .members td:nth-child(4),
+  .members th:nth-child(5),
+  .members td:nth-child(5),
+  .members col.col-phase,
+  .members col.col-ordered {
+    display: none;
+  }
+  .member-diff .tag,
+  .member-desc > .tag {
+    flex: 0 1 auto;
+    max-width: 100%;
+    height: auto;
+    min-height: 24px;
+    white-space: normal;
+  }
+  .members td {
+    padding: 10px 8px;
+    overflow-wrap: anywhere;
+  }
+  .group-foot .segmented {
+    width: 100%;
+  }
+  .group-foot .segmented button {
+    flex: 1;
+    justify-content: center;
+    padding: 0 6px;
+    white-space: normal;
+    line-height: 16px;
+    text-align: center;
+  }
+  .group-foot .segmented .suggested,
+  .group-foot .segmented .icon {
+    display: none;
   }
   .examples {
     flex-direction: column;

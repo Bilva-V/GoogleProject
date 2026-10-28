@@ -4,7 +4,7 @@
 
 import type { Attr, Catalog, Family, PartRecord, Phase, PhysicalPart, Spec } from './types';
 import { ATTRS_BY_FAMILY, NUMERIC_ATTRS } from './types';
-import { NEAR_MM, PHASE_RANK, statedCount } from './groups';
+import { PHASE_RANK, nearTolerance, statedCount } from './groups';
 
 export type Verdict = 'match' | 'near' | 'unknown' | 'differs';
 export type Band = 'ready' | 'close' | 'maybe';
@@ -52,7 +52,7 @@ export function check(attr: Attr, asked: string | number, found: string | number
   if (typeof asked === 'number' && typeof found === 'number') {
     const d = Math.abs(asked - found);
     if (d <= 0.001) return 'match';
-    if (attr !== 'pitch' && NUMERIC_ATTRS.has(attr) && d <= NEAR_MM + 0.001) return 'near';
+    if (attr !== 'pitch' && NUMERIC_ATTRS.has(attr) && d <= nearTolerance(asked) + 0.001) return 'near';
     return 'differs';
   }
   if (asked === found) return 'match';
@@ -144,6 +144,55 @@ export function numberMatches(catalog: Catalog, text: string): { parts: Physical
     }
   }
   return { parts: catalog.physical.filter((pp) => pp.gpns.some((g) => hits.has(g))), words };
+}
+
+/**
+ * Parts whose GPN or supplier part number starts with a typed number, for when the
+ * whole number matched nothing: '91114' finds 91114A011 and 91114A029. A lead, not a match.
+ */
+export function numberPrefixMatches(catalog: Catalog, text: string, limit = 20): { parts: PhysicalPart[]; words: Set<string> } {
+  const typed = text.split(/[\s,;]+/).filter((w) => /\d/.test(w) && normId(w).length >= 5);
+  const words = new Set<string>();
+  const hits = new Set<string>();
+  for (const w of typed) {
+    const k = normId(w);
+    for (const p of catalog.parts) {
+      for (const id of [p.gpn, ...p.suppliers.map((s) => s.partNumber)]) {
+        const n = normId(id);
+        if (n !== k && n.startsWith(k)) {
+          hits.add(p.gpn);
+          words.add(w);
+        }
+      }
+    }
+  }
+  return { parts: catalog.physical.filter((pp) => pp.gpns.some((g) => hits.has(g))).slice(0, limit), words };
+}
+
+export type VolumeTier = 'high' | 'regular' | 'low';
+
+/** Share of parts with volume that count as high runners, and the low-runner cut (Ishan's tiers). */
+export const HIGH_RUNNER_SHARE = 0.2;
+export const LOW_RUNNER_SHARE = 0.05;
+
+/**
+ * Each physical part's tier against every part that has volume, so a tier means the
+ * same thing whatever the search. Parts without volume have no tier.
+ */
+export function volumeTiers(catalog: Catalog): Map<string, VolumeTier> {
+  const byGpn = new Map(catalog.parts.map((p) => [p.gpn, p]));
+  const totals = catalog.physical
+    .map((pp) => {
+      const vols = pp.gpns.map((g) => byGpn.get(g)?.volume).filter((v): v is number => typeof v === 'number');
+      return { id: pp.id, qty: vols.length ? vols.reduce((a, b) => a + b, 0) : null };
+    })
+    .filter((x): x is { id: string; qty: number } => x.qty !== null);
+  const tiers = new Map<string, VolumeTier>();
+  if (!totals.length) return tiers;
+  const sorted = totals.map((t) => t.qty).sort((a, b) => b - a);
+  const cutoff = sorted[Math.max(0, Math.ceil(sorted.length * HIGH_RUNNER_SHARE) - 1)];
+  for (const t of totals) tiers.set(t.id, t.qty > 0 && t.qty >= cutoff ? 'high' : t.qty < sorted[0] * LOW_RUNNER_SHARE ? 'low' : 'regular');
+  return tiers;
 }
 
 /**

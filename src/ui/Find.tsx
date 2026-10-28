@@ -5,7 +5,7 @@ import { Icon } from './Icon';
 import type { Attr, Catalog, Family, Spec } from '../engine/types';
 import { ATTRS_BY_FAMILY, ATTR_LABEL, PHASES } from '../engine/types';
 import { parseQuery, suggestWord } from '../engine/parse';
-import { DEFAULT_SCOPE, Hit, Scope, askedAttrs, numberMatches, numberSuggestions, search } from '../engine/search';
+import { DEFAULT_SCOPE, Hit, Scope, askedAttrs, hitFor, numberMatches, numberPrefixMatches, numberSuggestions, search } from '../engine/search';
 import { standardDescription } from '../engine/standard';
 import { specToQuery, withAttr } from '../engine/query';
 import { useStore } from './store';
@@ -18,6 +18,7 @@ import { StandardText } from './StandardText';
 import { Gpn } from './Gpn';
 import { Mark } from './Mark';
 import { KIND_ONE } from './rules';
+import { VolumeShare } from './VolumeShare';
 
 const EXAMPLES: string[] = [
   'm3 x 8 pan phillips',
@@ -54,7 +55,14 @@ export function Find({ q }: { q: string }) {
   const numbers = useMemo(() => numberMatches(catalog, deferred), [catalog, deferred]);
   const zeroHints = useMemo(() => (numbers.parts.length ? [] : numberSuggestions(catalog, deferred)), [catalog, numbers, deferred]);
   // A word that found a GPN or supplier part number was understood.
-  const unread = read.unread.filter((w) => !numbers.words.has(w) && !zeroHints.some((z) => z.typed === w));
+  // When a whole number finds nothing, parts whose number starts with it are a lead.
+  const partial = useMemo(() => {
+    if (numbers.parts.length || read.spec.family) return { hits: [] as Hit[], words: new Set<string>() };
+    const m = numberPrefixMatches(catalog, deferred);
+    const byGpn = new Map(catalog.parts.map((p) => [p.gpn, p]));
+    return { hits: m.parts.map((pp) => hitFor(catalog, pp, null, byGpn)), words: m.words };
+  }, [catalog, numbers, read, deferred]);
+  const unread = read.unread.filter((w) => !numbers.words.has(w) && !partial.words.has(w) && !zeroHints.some((z) => z.typed === w));
   const family = spec.family;
 
   const setQuery = (text: string) => go({ page: 'find', q: text }, true);
@@ -110,7 +118,7 @@ export function Find({ q }: { q: string }) {
           onKeyDown={(e) => {
             if (e.key === 'Escape' && q) setQuery('');
           }}
-          placeholder="Describe the fastener: m3 x 8 pan phillips stainless"
+          placeholder="Describe the fastener, or paste a GPN or supplier part number"
           aria-label="Describe the fastener, or paste a part number"
           spellCheck={false}
           autoComplete="off"
@@ -139,7 +147,7 @@ export function Find({ q }: { q: string }) {
         />
       ) : (
         <div className="read-back">
-          {!family && (result.byNumber.length || zeroHints.length || !settled) ? null : (
+          {!family && (result.byNumber.length || partial.hits.length || zeroHints.length || !settled) ? null : (
           <div className="family-switch" role="radiogroup" aria-label="Kind of fastener">
             {FAMILIES.map((f) => (
               <button key={f} type="button" role="radio" aria-checked={family === f} className={family === f ? 'is-current' : ''} onClick={() => setFamily(f)}>
@@ -208,6 +216,20 @@ export function Find({ q }: { q: string }) {
         </section>
       ) : null}
 
+      {partial.hits.length ? (
+        <section className="band band-number">
+          <header className="band-head">
+            <h2>Part numbers starting with {[...partial.words].join(', ')}</h2>
+            <p>No GPN or supplier part number is exactly that. These start with it; check the full number before using one.</p>
+          </header>
+          <div className="hits">
+            {partial.hits.map((h) => (
+              <HitRow key={h.part.id} hit={h} active={drawer === h.part.id} onOpen={() => setDrawer(h.part.id)} compare={compare} onCompare={toggleCompare} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       {family ? (
         <div className="find-grid">
           <aside className="spec-panel" aria-label="The part you described">
@@ -241,6 +263,7 @@ export function Find({ q }: { q: string }) {
             ) : (
               <>
                 {result.ready.length === 0 ? <Loosen spec={spec} scope={scope} onSpec={setSpec} /> : null}
+                <VolumeShare hits={[...result.ready, ...result.close]} />
                 <Band title="Ready to use" note="States everything you asked for." hits={result.ready} drawer={drawer} onOpen={setDrawer} compare={compare} onCompare={toggleCompare} collapseAfter={8} />
                 <Band
                   title="Close size"
@@ -275,7 +298,7 @@ export function Find({ q }: { q: string }) {
             )}
           </div>
         </div>
-      ) : settled && !empty && !result.byNumber.length && !zeroHints.length ? (
+      ) : settled && !empty && !result.byNumber.length && !partial.hits.length && !zeroHints.length ? (
         <p className="hint">
           Say what kind of fastener it is, or start with a size like M3 or 10-32. Or pick one:{' '}
           {FAMILIES.map((f, i) => (
@@ -327,6 +350,13 @@ function Start({ onPick }: { onPick: (q: string) => void }) {
           </button>
         </div>
       </div>
+      <p className="start-number">
+        Have a part number? Paste a GPN or a supplier or McMaster number, whole or just the start of it (try{' '}
+        <button type="button" className="link" onClick={() => onPick('91114')}>
+          91114
+        </button>
+        ).
+      </p>
 
       <div className="kinds">
         <p className="examples-label">Or start from the kind</p>
@@ -435,7 +465,8 @@ interface RowProps {
 }
 
 export function HitRow({ hit, active, onOpen, compare, onCompare }: RowProps) {
-  const { catalog } = useStore();
+  const { catalog, tiers } = useStore();
+  const tier = tiers.get(hit.part.id);
   const std = standardDescription(hit.part.spec);
   const aliases = hit.part.gpns.length - 1;
   const flag = catalog.groups.find((g) => g.kind !== 'duplicate' && g.kind !== 'pack' && g.gpns.some((x) => hit.part.gpns.includes(x)));
@@ -462,7 +493,9 @@ export function HitRow({ hit, active, onOpen, compare, onCompare }: RowProps) {
         <span className="hit-sub">
           {hit.preferred.phase !== 'Production' ? <PhasePill phase={hit.preferred.phase} /> : null}
           {aliases ? <span className="meta-note">+{plural(aliases, 'duplicate')}</span> : null}
+          {tier === 'high' ? <span className="tag tag-high">High runner</span> : null}
           {hit.volume !== null ? <span className="meta-note num">{hit.volume.toLocaleString('en-US')} ordered</span> : null}
+          {tier === 'low' ? <span className="meta-note">low runner</span> : null}
           {flag ? <span className={`tag tag-${flag.kind}`}>{KIND_ONE[flag.kind]}</span> : null}
         </span>
       </div>
