@@ -72,6 +72,9 @@ Shortcuts: `/` jumps to the search, `Esc` clears it or closes a panel.
 
 ## Demo path (about 10 minutes)
 
+The full script, with what to say at each step and answers to likely questions, is in
+[docs/demo-golden-path.md](docs/demo-golden-path.md).
+
 1. **Find:** click the example `m3 x 8 pan phillips`. You get 3 ready to use and 2 might fit, and
    the drawing and "Written to the standard" fill in.
 2. Click the drive circle on the drawing and pick **torx** (the menu shows "1 fit"). That leaves
@@ -115,5 +118,5 @@ src/engine/      parser, grouping, search, standard, health (pure TypeScript)
 src/ui/          React screens: Find, NewPart, Cleanup, Health, Standard, part panel, drawing
 src/styles/      Material 3 styling (Google Sans, light and dark)
 tests/           Vitest suites
-docs/            BUILD_GUIDE.md: plan, milestones, design notes
+docs/            demo-golden-path.md (demo script), BUILD_GUIDE.md (plan, milestones, design notes)
 ```
