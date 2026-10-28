@@ -1,4 +1,4 @@
-# Fastener Finder: demo golden path
+# Bilva's Fastener Finder: demo golden path
 
 About 8 minutes. Six stops: **find a part → open it → a near size → no dead ends → a conflict → clean up and volumes**. Every click, GPN and count below was checked against the running app on the October 2026 export (28 Oct 2026).
 

@@ -55,7 +55,7 @@ export function App() {
       health: 'Health',
       standard: 'Standard',
     };
-    document.title = `${titles[route.page]} · Fastener Finder`;
+    document.title = `${titles[route.page]} · Bilva's Fastener Finder`;
   }, [route.page]);
 
   return (
@@ -64,7 +64,7 @@ export function App() {
       <header className="topbar">
         <a className="brand" href="#/find" onClick={(e) => { e.preventDefault(); go({ page: 'find', q: '' }); }}>
           <Mark />
-          <span>Fastener Finder</span>
+          <span>Bilva's Fastener Finder</span>
         </a>
         <p className="data-stamp">
           <span className="num">{catalog.health.inScope.toLocaleString('en-US')}</span> GPNs from the Oct 2026 Agile export
