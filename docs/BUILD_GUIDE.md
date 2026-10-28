@@ -107,14 +107,14 @@ spec, so every new part is born searchable.
 ## 5. Architecture
 
 - **Stack:** React 18 + Vite + TypeScript, Vitest. No router library (hash routes), no state
-  library, no runtime network. Fonts bundled (IBM Plex Sans and Plex Mono).
+  library, no runtime network. Fonts and icons bundled (Google Sans Flex, Google Sans Code, Material Symbols).
 - **Data pipeline (build time):** `scripts/build-catalog.ts` reads the xlsx directly (exceljs),
   merges both sheets by GPN, parses every description, builds clusters and physical parts,
   computes health metrics, and writes `src/generated/catalog.json`. Both the source data and the
   generated catalog are committed to the private repository.
 - **Engine (pure functions, shared by build and app):** `parse` (text → Spec), `match` (Spec ×
   Part → verdicts), `rank`, `cluster`, `standardDescription`, `health`.
-- **Style:** taste skill app-screen rules, achromatic-ledger style: ink chrome, one data hue
+- **Style (first pass, since replaced by Material 3; see §9):** taste skill app-screen rules, achromatic-ledger style: ink chrome, one data hue
   (#1d5fbf) on matching values, steel-grey ground, no gradients, shadows only on floating
   layers.
 
@@ -159,9 +159,33 @@ Sources: Anthropic's frontend-design skill, the installed taste skill's app-scre
 - **Records too vague to check** (stating none of what was asked) are folded into a collapsed band
   rather than padding "Might fit".
 - **The job's output is a GPN:** every GPN has a one-click copy with a confirmation toast.
-- **Type:** IBM Plex Sans (an engineering face with real tabular figures; the condensed width axis is
-  used for drawing labels and standard text) plus IBM Plex Mono for IDs only. Bundled, so no network.
+- **Type (first pass):** IBM Plex Sans and Plex Mono; replaced by Google Sans in §9.
 - **Colour on data only:** one blueprint blue for matches, the ready count and the completeness
   bars; amber for near sizes, red for conflicts; near-black for the one primary button. Light and dark.
 - **Keyboard:** `/` focuses the search from any screen; Esc clears it or closes a panel.
 - **Phone:** results come before the drawing; no horizontal scroll at 375 px.
+
+## 9. Google design language (Oct 28)
+
+Restyled in Material 3 as Google Workspace uses it, so the tool feels native to Google's engineers:
+
+- **Type:** Google Sans Flex (text; headlines at regular weight, as Google does) and Google Sans Code
+  (GPNs and part numbers). **Icons:** Material Symbols Rounded, inlined as SVG. All bundled.
+- **Colour roles:** the Workspace scheme (primary #0b57d0, primary container #d3e3fd, secondary
+  container #c2e7ff, background #f8fafd, surface containers #f0f4f9 / #e9eef6), with a dark scheme.
+  Matches use the success container (green), near sizes a yellow container, conflicts the error
+  container; "not stated" stays a dashed outline.
+- **Components:** navigation rail with a pill indicator (bottom navigation bar under 720 px); pill
+  search bar that turns white and lifts on focus; input chips for what the search understood and
+  dashed assist chips for what's missing; segmented buttons with a check on the selected segment;
+  filled, outlined and text buttons; primary tabs with a 3 px indicator and count badges; modal side
+  sheet; dialog with a 28 px radius; snackbar; linear progress indicators; 8% hover state layers.
+- **Kept from the first pass:** the live drawing on a dotted drafting sheet, with the standard text as
+  its title block, as the one element specific to this product.
+
+### Data audit (Oct 28)
+
+`scripts/audit-data.py` reads the xlsx with the Python standard library (independent of exceljs) and
+checks every catalogue part. Result: 0 discrepancies across 1,155 parts; `data/source.xlsx` is
+byte-identical to *Copy of GPNs list-Oct 2026.xlsx*; rebuilding the catalogue reproduces the
+committed file exactly (apart from its build time).

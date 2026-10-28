@@ -1,5 +1,6 @@
 // A chip for one attribute of the search, with a popover listing the values the
-// catalogue really holds (and how many parts state each).
+// catalogue really holds and, given the rest of the search, how many parts each
+// choice would leave ready to use or close.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Attr, Catalog, Family, Spec } from '../engine/types';
@@ -15,15 +16,23 @@ interface Props {
   open: boolean;
   onOpen: (open: boolean) => void;
   onSet: (value: string | number | null) => void;
+  /** parts ready or close if this value were chosen, with the rest of the search unchanged */
+  countFor?: (value: string | number) => number;
 }
 
-export function Chip({ catalog, family, attr, spec, open, onOpen, onSet }: Props) {
+export function Chip({ catalog, family, attr, spec, open, onOpen, onSet, countFor }: Props) {
   const value = (spec as unknown as Record<string, string | number | null>)[attr];
   const set = value !== null && value !== undefined;
   const ref = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
   const [filter, setFilter] = useState('');
   const options = useMemo(() => valueCounts(catalog, family, attr), [catalog, family, attr]);
   const numeric = NUMERIC_ATTRS.has(attr);
+  // Only worked out while the menu is open: one search per value.
+  const fits = useMemo(
+    () => (open && countFor ? new Map(options.map((o) => [o.value, countFor(o.value)])) : null),
+    [open, countFor, options]
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -46,6 +55,7 @@ export function Chip({ catalog, family, attr, spec, open, onOpen, onSet }: Props
   return (
     <div className={`chip${set ? ' is-set' : ' is-unset'}${open ? ' is-open' : ''}`} ref={ref}>
       <button
+        ref={button}
         type="button"
         className="chip-btn"
         onClick={() => onOpen(!open)}
@@ -63,7 +73,16 @@ export function Chip({ catalog, family, attr, spec, open, onOpen, onSet }: Props
         )}
       </button>
       {set ? (
-        <button type="button" className="chip-x" aria-label={`Remove ${ATTR_LABEL[attr]}`} onClick={() => onSet(null)}>
+        <button
+          type="button"
+          className="chip-x"
+          aria-label={`Remove ${ATTR_LABEL[attr]}`}
+          onClick={() => {
+            onSet(null);
+            // Keep focus (and the scroll position) on this field rather than losing it with the × button.
+            requestAnimationFrame(() => button.current?.focus({ preventScroll: true }));
+          }}
+        >
           ×
         </button>
       ) : null}
@@ -102,13 +121,19 @@ export function Chip({ catalog, family, attr, spec, open, onOpen, onSet }: Props
                   onClick={() => { onSet(o.value); onOpen(false); }}
                 >
                   <span>{formatValue(attr, o.value)}</span>
-                  <span className="pop-count">{o.count}</span>
+                  {fits ? (
+                    <span className={`pop-count${fits.get(o.value) ? '' : ' is-zero'}`}>{fits.get(o.value) ? `${fits.get(o.value)} fit` : 'none fit'}</span>
+                  ) : (
+                    <span className="pop-count">{o.count}</span>
+                  )}
                 </button>
               </li>
             ))}
             {!shown.length && typed === null ? <li className="pop-empty">No part states that.</li> : null}
           </ul>
-          <p className="pop-foot">Counts are parts whose description states the value.</p>
+          <p className="pop-foot">
+            {fits ? 'How many parts would be ready or close with this choice and the rest of your search.' : 'Counts are parts whose description states the value.'}
+          </p>
         </div>
       ) : null}
     </div>

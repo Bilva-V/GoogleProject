@@ -1,18 +1,18 @@
 // Find: describe the fastener in one line, see the parts Google already stocks.
 
-import { useDeferredValue, useMemo, useState } from 'react';
-import { Search, X, SlidersHorizontal, Plus } from 'lucide-react';
+import { useCallback, useDeferredValue, useMemo, useState } from 'react';
+import { Icon } from './Icon';
 import type { Attr, Catalog, Family, Spec } from '../engine/types';
 import { ATTRS_BY_FAMILY, ATTR_LABEL, PHASES } from '../engine/types';
-import { parseQuery } from '../engine/parse';
-import { DEFAULT_SCOPE, Hit, Scope, askedAttrs, search } from '../engine/search';
+import { parseQuery, suggestWord } from '../engine/parse';
+import { DEFAULT_SCOPE, Hit, Scope, askedAttrs, numberMatches, numberSuggestions, search } from '../engine/search';
 import { standardDescription } from '../engine/standard';
 import { specToQuery, withAttr } from '../engine/query';
 import { useStore } from './store';
 import { Chip } from './Picker';
 import { Drawing } from './Drawing';
 import { FAMILY_LABEL, formatValue, plural } from './format';
-import { PartDrawer, PhasePill } from './PartDrawer';
+import { PartPanel, PhasePill, usePartPanel } from './PartDrawer';
 import { Compare } from './Compare';
 import { StandardText } from './StandardText';
 import { Gpn } from './Gpn';
@@ -39,16 +39,34 @@ export function Find({ q }: { q: string }) {
   const { catalog, go } = useStore();
   const [scope, setScope] = useState<Scope>(DEFAULT_SCOPE);
   const [openAttr, setOpenAttr] = useState<Attr | null>(null);
-  const [drawer, setDrawer] = useState<string | null>(null);
+  const panel = usePartPanel();
+  const drawer = panel.top;
+  const setDrawer = panel.open;
   const [compare, setCompare] = useState<string[]>([]);
   const [comparing, setComparing] = useState(false);
   const deferred = useDeferredValue(q);
+  // While the deferred search catches up with the typing, hold back messages about it.
+  const settled = deferred === q;
 
-  const { spec, unread } = useMemo(() => parseQuery(deferred), [deferred]);
+  const read = useMemo(() => parseQuery(deferred), [deferred]);
+  const spec = read.spec;
   const result = useMemo(() => search(catalog, spec, scope, deferred), [catalog, spec, scope, deferred]);
+  const numbers = useMemo(() => numberMatches(catalog, deferred), [catalog, deferred]);
+  const zeroHints = useMemo(() => (numbers.parts.length ? [] : numberSuggestions(catalog, deferred)), [catalog, numbers, deferred]);
+  // A word that found a GPN or supplier part number was understood.
+  const unread = read.unread.filter((w) => !numbers.words.has(w) && !zeroHints.some((z) => z.typed === w));
   const family = spec.family;
 
   const setQuery = (text: string) => go({ page: 'find', q: text }, true);
+  const replaceWord = (from: string, to: string) => setQuery(q.replace(from, to));
+  // How many parts each value of a chip would leave ready or close, given the rest of the search.
+  const countFor = useCallback(
+    (a: Attr) => (v: string | number) => {
+      const r = search(catalog, withAttr(spec, a, v), scope);
+      return r.ready.length + r.close.length;
+    },
+    [catalog, spec, scope]
+  );
   const setSpec = (next: Spec) => setQuery(specToQuery(next));
   const setFamily = (f: Family) => setSpec({ ...spec, family: f });
   const toggleCompare = (id: string) =>
@@ -61,7 +79,6 @@ export function Find({ q }: { q: string }) {
   const silent = result.maybe.filter((h) => !checkable(h));
   const empty = !q.trim();
   const standard = family ? standardDescription(spec) : null;
-  const drawerHit = drawer ? [...hits, ...result.excluded, ...result.byNumber].find((h) => h.part.id === drawer) ?? null : null;
   const asked = family ? askedAttrs(spec) : [];
   const unset = family ? ATTRS_BY_FAMILY[family].filter((a) => !asked.includes(a) && a !== 'pitch') : [];
 
@@ -76,6 +93,7 @@ export function Find({ q }: { q: string }) {
         open={openAttr === a}
         onOpen={(o) => setOpenAttr(o ? a : null)}
         onSet={(v) => setSpec(withAttr(spec, a, v))}
+        countFor={countFor(a)}
       />
     ) : null;
 
@@ -83,7 +101,7 @@ export function Find({ q }: { q: string }) {
     <div className="find">
       <h1 className="sr-only">Find a fastener</h1>
       <div className={`spec-line${empty ? ' is-empty' : ''}`}>
-        <Search className="spec-icon" size={20} strokeWidth={1.75} aria-hidden="true" />
+        <Icon name="search" size={22} className="spec-icon" />
         <input
           id={SEARCH_INPUT_ID}
           className="spec-input"
@@ -100,7 +118,7 @@ export function Find({ q }: { q: string }) {
         />
         {q ? (
           <button type="button" className="icon-btn spec-clear" onClick={() => setQuery('')} aria-label="Clear the search" title="Clear (Esc)">
-            <X size={18} strokeWidth={1.75} aria-hidden="true" />
+            <Icon name="close" size={20} />
           </button>
         ) : (
           <kbd className="spec-kbd" title="Press / to search from anywhere">/</kbd>
@@ -108,16 +126,29 @@ export function Find({ q }: { q: string }) {
       </div>
 
       {empty ? (
-        <Start onPick={setQuery} />
+        <Start
+          onPick={(text) => {
+            setQuery(text);
+            // Put the caret after the example so typing adds to it.
+            requestAnimationFrame(() => {
+              const el = document.getElementById(SEARCH_INPUT_ID) as HTMLInputElement | null;
+              el?.focus();
+              el?.setSelectionRange(text.length, text.length);
+            });
+          }}
+        />
       ) : (
         <div className="read-back">
+          {!family && (result.byNumber.length || zeroHints.length || !settled) ? null : (
           <div className="family-switch" role="radiogroup" aria-label="Kind of fastener">
             {FAMILIES.map((f) => (
               <button key={f} type="button" role="radio" aria-checked={family === f} className={family === f ? 'is-current' : ''} onClick={() => setFamily(f)}>
+                {family === f ? <Icon name="check" size={18} /> : null}
                 {FAMILY_LABEL[f]}
               </button>
             ))}
           </div>
+          )}
           {family ? (
             <div className="chips" aria-label="What the search understood">
               {asked.map(chip)}
@@ -129,9 +160,35 @@ export function Find({ q }: { q: string }) {
               ) : null}
             </div>
           ) : null}
-          {unread.length ? (
+          {settled && unread.length ? (
             <p className="unread">
               Not understood, so not searched on: {unread.map((w, i) => <q key={i}>{w}</q>)}
+              {unread.map((w) => {
+                const s = suggestWord(w);
+                return s ? (
+                  <button key={`s-${w}`} type="button" className="suggest-btn suggest-inline" onClick={() => replaceWord(w, s)}>
+                    Did you mean <strong>{s}</strong>?
+                  </button>
+                ) : null;
+              })}
+            </p>
+          ) : null}
+          {settled && read.notRecorded.length ? (
+            <p className="unread">
+              Not searched on: {read.notRecorded.map((w, i) => <q key={i}>{w}</q>)} Agile descriptions don't record this, so it can't narrow the results.
+            </p>
+          ) : null}
+          {settled && zeroHints.length ? (
+            <p className="unread">
+              {zeroHints.map((z) => (
+                <span key={z.typed}>
+                  No GPN <q>{z.typed}</q>.{' '}
+                  <button type="button" className="suggest-btn suggest-inline" onClick={() => replaceWord(z.typed, z.gpn)}>
+                    Did you mean <strong>{z.gpn}</strong>?
+                  </button>{' '}
+                  Spreadsheets often drop the leading zero.
+                </span>
+              ))}
             </p>
           ) : null}
         </div>
@@ -173,6 +230,7 @@ export function Find({ q }: { q: string }) {
                 <Tally n={result.ready.length} label="ready to use" hue />
                 <Tally n={result.close.length} label="close size" />
                 <Tally n={maybe.length} label="might fit" />
+                <Tally n={silent.length} label="too vague" faint />
                 <Tally n={result.excluded.length} label="ruled out" faint />
               </div>
               <ScopeMenu scope={scope} onChange={setScope} hidden={result.outOfScope} />
@@ -210,14 +268,14 @@ export function Find({ q }: { q: string }) {
                     <strong>None of these right?</strong> Request a new part and get its description written to the standard.
                   </p>
                   <button type="button" className="btn" onClick={() => go({ page: 'new', q })}>
-                    <Plus size={16} strokeWidth={1.75} aria-hidden="true" /> Request a new part
+                    <Icon name="add" size={18} /> Request a new part
                   </button>
                 </div>
               </>
             )}
           </div>
         </div>
-      ) : !empty && !result.byNumber.length ? (
+      ) : settled && !empty && !result.byNumber.length && !zeroHints.length ? (
         <p className="hint">
           Say what kind of fastener it is, or start with a size like M3 or 10-32. Or pick one:{' '}
           {FAMILIES.map((f, i) => (
@@ -245,7 +303,7 @@ export function Find({ q }: { q: string }) {
         </div>
       ) : null}
 
-      {drawerHit ? <PartDrawer hit={drawerHit} onClose={() => setDrawer(null)} /> : null}
+      <PartPanel panel={panel} asked={spec} />
       {comparing && compare.length >= 2 ? <Compare ids={compare} asked={spec} onClose={() => setComparing(false)} /> : null}
     </div>
   );
@@ -341,7 +399,7 @@ function ScopeMenu({ scope, onChange, hidden }: { scope: Scope; onChange: (s: Sc
   return (
     <div className="scope">
       <button type="button" className={`btn btn-quiet scope-toggle${isDefault ? '' : ' is-changed'}`} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <SlidersHorizontal size={15} strokeWidth={1.75} aria-hidden="true" />
+        <Icon name="tune" size={18} />
         {isDefault ? 'Active parts' : `${plural(scope.phases.length, 'phase')}${scope.kits ? ' + kits' : ''}`}
       </button>
       {open ? (
@@ -544,7 +602,7 @@ function DeadEnd({ q, spec, scope, excluded, onOpen, onSpec }: { q: string; spec
           <strong>Really need a new part?</strong> The form writes its description to the standard so the next person finds it.
         </p>
         <button type="button" className="btn btn-primary" onClick={() => go({ page: 'new', q })}>
-          <Plus size={16} strokeWidth={1.75} aria-hidden="true" /> Request a new part
+          <Icon name="add" size={18} /> Request a new part
         </button>
       </div>
     </section>

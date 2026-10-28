@@ -2,8 +2,10 @@
 // descriptions state, every GPN it is filed under, and the parts it could be
 // confused with.
 
-import type { Attr, PartRecord } from '../engine/types';
+import { useMemo, useState } from 'react';
+import type { Attr, PartRecord, PhysicalPart, Spec } from '../engine/types';
 import { ATTRS_BY_FAMILY, ATTR_LABEL } from '../engine/types';
+import { hitFor } from '../engine/search';
 import type { Check, Hit } from '../engine/search';
 import { standardDescription } from '../engine/standard';
 import { useStore } from './store';
@@ -13,9 +15,44 @@ import { StandardText } from './StandardText';
 import { FAMILY_LABEL, formatValue, plural } from './format';
 import { KIND_ONE, KIND_RULE, groupSummary } from './rules';
 import { Mark } from './Mark';
+import { Icon } from './Icon';
 
-export function PartDrawer({ hit, onClose }: { hit: Hit; onClose: () => void }) {
-  const { catalog, go } = useStore();
+/** The open part panel, as a stack: opening a related part pushes it, Back returns. */
+export function usePartPanel() {
+  const [stack, setStack] = useState<string[]>([]);
+  return {
+    top: stack[stack.length - 1] ?? null,
+    depth: stack.length,
+    open: (id: string) => setStack([id]),
+    push: (id: string) => setStack((s) => [...s, id]),
+    back: () => setStack((s) => s.slice(0, -1)),
+    close: () => setStack([]),
+  };
+}
+
+/** Renders the panel for whatever part is on top of the stack, checked against the search. */
+export function PartPanel({ panel, asked }: { panel: ReturnType<typeof usePartPanel>; asked: Spec | null }) {
+  const { catalog } = useStore();
+  const byGpn = useMemo(() => new Map(catalog.parts.map((p) => [p.gpn, p])), [catalog]);
+  const part = panel.top ? catalog.physical.find((p) => p.id === panel.top) : undefined;
+  if (!part) return null;
+  const hit = hitFor(catalog, part, asked?.family ? asked : null, byGpn);
+  const openGpn = (gpn: string) => {
+    const pp: PhysicalPart | undefined = catalog.physical.find((p) => p.gpns.includes(gpn));
+    if (pp) panel.push(pp.id);
+  };
+  return <PartDrawer key={part.id} hit={hit} onClose={panel.close} onOpenGpn={openGpn} onBack={panel.depth > 1 ? panel.back : undefined} />;
+}
+
+interface DrawerProps {
+  hit: Hit;
+  onClose: () => void;
+  onOpenGpn: (gpn: string) => void;
+  onBack?: () => void;
+}
+
+export function PartDrawer({ hit, onClose, onOpenGpn, onBack }: DrawerProps) {
+  const { catalog } = useStore();
   const { part, preferred, members } = hit;
   const spec = part.spec;
   const std = standardDescription(spec);
@@ -24,17 +61,35 @@ export function PartDrawer({ hit, onClose }: { hit: Hit; onClose: () => void }) 
   const related = catalog.groups.filter((g) => g.kind !== 'duplicate' && g.kind !== 'pack' && g.gpns.some((x) => part.gpns.includes(x)));
   const others = members.filter((m) => m.gpn !== preferred.gpn);
   const byGpn = new Map(catalog.parts.map((p) => [p.gpn, p]));
+  const conflict = related.find((g) => g.kind === 'conflict');
+  const conflictOthers = conflict ? conflict.gpns.filter((x) => !part.gpns.includes(x)) : [];
 
   return (
     <Sheet label={`Part ${part.preferred}`} onClose={onClose}>
       <header className="drawer-head">
+        {onBack ? (
+          <button type="button" className="link back" onClick={onBack}>
+            <Icon name="arrow_back" size={18} /> Back
+          </button>
+        ) : null}
         <p className="drawer-family">{FAMILY_LABEL[family]}</p>
         <h2>{std ? <StandardText text={std.text} /> : preferred.description}</h2>
-        <div className="drawer-use">
-          <Gpn gpn={part.preferred} size="lg" />
-          <PhasePill phase={preferred.phase} />
-        </div>
-        <p className="drawer-why">{whyPreferred(preferred, others)}</p>
+        {conflict ? (
+          <div className="drawer-use is-conflict" role="alert">
+            <Gpn gpn={part.preferred} size="lg" />
+            <PhasePill phase={preferred.phase} />
+          </div>
+        ) : (
+          <div className="drawer-use">
+            <Gpn gpn={part.preferred} size="lg" />
+            <PhasePill phase={preferred.phase} />
+          </div>
+        )}
+        <p className={`drawer-why${conflict ? ' is-conflict' : ''}`}>
+          {conflict
+            ? `Check before using. ${conflictOthers.join(', ')} cites the same supplier part number (${conflict.detail}) but describes it differently: ${conflict.differences.map((a) => ATTR_LABEL[a].toLowerCase()).join(', ')}. One record is wrong.`
+            : whyPreferred(preferred, others, part.chosenInReview)}
+        </p>
       </header>
 
       <section className="drawer-section">
@@ -107,7 +162,7 @@ export function PartDrawer({ hit, onClose }: { hit: Hit; onClose: () => void }) 
                   .filter((x) => !part.gpns.includes(x))
                   .map((x) => (
                     <li key={x}>
-                      <button type="button" className="link" onClick={() => { onClose(); go({ page: 'find', q: x }); }}>
+                      <button type="button" className="link" onClick={() => onOpenGpn(x)}>
                         <code>{x}</code>
                       </button>
                       <span>{byGpn.get(x)?.description}</span>
@@ -122,8 +177,9 @@ export function PartDrawer({ hit, onClose }: { hit: Hit; onClose: () => void }) 
   );
 }
 
-function whyPreferred(p: PartRecord, others: PartRecord[]): string {
+function whyPreferred(p: PartRecord, others: PartRecord[], chosen?: boolean): string {
   if (!others.length) return 'The only GPN for this part.';
+  if (chosen) return `Use this GPN: chosen in Clean up. ${plural(others.length, 'other GPN')} ${others.length === 1 ? 'repeats' : 'repeat'} the same part.`;
   const n = others.length;
   const reason =
     p.volume !== null && others.every((o) => (o.volume ?? -1) <= p.volume!)

@@ -56,6 +56,15 @@ export function check(attr: Attr, asked: string | number, found: string | number
     return 'differs';
   }
   if (asked === found) return 'match';
+  // A size given without threads per inch (#8, 5/16) is the general form of 8-32, 5/16-18.
+  if (attr === 'thread') {
+    const base = (t: string) => t.replace(/^#/, '').replace(/-\d+$/, '');
+    const general = (t: string) => /^#\d+$|^\d+\/\d+$/.test(t);
+    if (base(String(asked)) === base(String(found))) {
+      if (general(String(asked))) return 'match'; // asked #8, part says 8-32
+      if (general(String(found))) return 'unknown'; // asked 8-32, part only says #8
+    }
+  }
   if (GENERAL[String(found)] === asked) return 'match'; // asked 'black', part says 'black oxide'
   if (GENERAL[String(asked)] === found) return 'unknown'; // asked 'black oxide', part only says 'black'
   return 'differs';
@@ -115,14 +124,55 @@ const normId = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
 /** Physical parts whose GPN or supplier part number appears in the text. */
 export function findByNumber(catalog: Catalog, text: string): PhysicalPart[] {
-  const tokens = text.split(/[\s,;]+/).map(normId).filter((t) => t.length >= 5);
-  if (!tokens.length) return [];
-  const want = new Set(tokens);
+  return numberMatches(catalog, text).parts;
+}
+
+/** The parts a typed GPN or supplier part number points to, and which typed words did the pointing. */
+export function numberMatches(catalog: Catalog, text: string): { parts: PhysicalPart[]; words: Set<string> } {
+  const typed = text.split(/[\s,;]+/).filter((w) => normId(w).length >= 5);
+  const words = new Set<string>();
+  if (!typed.length) return { parts: [], words };
+  const want = new Map(typed.map((w) => [normId(w), w]));
   const hits = new Set<string>();
   for (const p of catalog.parts) {
-    if (want.has(normId(p.gpn)) || p.suppliers.some((s) => want.has(normId(s.partNumber)))) hits.add(p.gpn);
+    for (const id of [p.gpn, ...p.suppliers.map((s) => s.partNumber)]) {
+      const w = want.get(normId(id));
+      if (w) {
+        hits.add(p.gpn);
+        words.add(w);
+      }
+    }
   }
-  return catalog.physical.filter((pp) => pp.gpns.some((g) => hits.has(g)));
+  return { parts: catalog.physical.filter((pp) => pp.gpns.some((g) => hits.has(g))), words };
+}
+
+/**
+ * GPNs a typed number probably meant when it matched nothing: spreadsheets drop
+ * leading zeros (07070024 → 7070024). Only suggested, never matched automatically,
+ * because 7018362 and 07018362 are different GPNs.
+ */
+export function numberSuggestions(catalog: Catalog, text: string): { typed: string; gpn: string }[] {
+  const gpns = new Set(catalog.parts.map((p) => p.gpn));
+  const out: { typed: string; gpn: string }[] = [];
+  for (const w of text.split(/[\s,;]+/)) {
+    if (!/^\d{5,8}$/.test(w) || gpns.has(w)) continue;
+    for (const pad of ['0', '00']) if (gpns.has(pad + w)) out.push({ typed: w, gpn: pad + w });
+  }
+  return out;
+}
+
+/**
+ * The stocked parts nearest a spec, for when nothing fits: fewest stated differences
+ * first, then fewest unknowns. Records that state none of what was asked are left out.
+ */
+export function closest(result: SearchResult, n = 3): Hit[] {
+  const said = (h: Hit) => h.checks.some((c) => c.verdict === 'match' || c.verdict === 'near');
+  const count = (h: Hit, v: Verdict) => h.checks.filter((c) => c.verdict === v).length;
+  const score = (h: Hit) => count(h, 'differs') * 2 + count(h, 'unknown') + count(h, 'near') * 0.5;
+  return [...result.close, ...result.maybe, ...result.excluded]
+    .filter(said)
+    .sort((a, b) => score(a) - score(b) || rank(a, b))
+    .slice(0, n);
 }
 
 export function search(catalog: Catalog, q: Spec, scope: Scope, text = ''): SearchResult {

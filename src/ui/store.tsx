@@ -34,6 +34,26 @@ export function parseVolumes(text: string): { volumes: Map<string, number>; skip
   return { volumes, skipped: Math.max(0, skipped - 1) }; // the header is not a skip
 }
 
+/**
+ * Apply reviewers' choices: where Clean up kept a different GPN for a part that is
+ * folded together (duplicates, pack sizes), Find recommends that GPN instead.
+ * A group marked 'keep separate' is left to the rules.
+ */
+export function withReviews(base: Catalog, reviews: Record<string, Review>): Catalog {
+  const chosen = new Map<string, string>(); // any GPN in the group → the GPN kept
+  for (const g of base.groups) {
+    const r = reviews[g.id];
+    if (!r?.preferred || r.decision === 'separate' || (g.kind !== 'duplicate' && g.kind !== 'pack')) continue;
+    for (const x of g.gpns) chosen.set(x, r.preferred);
+  }
+  if (!chosen.size) return base;
+  const physical = base.physical.map((pp) => {
+    const keep = pp.gpns.map((x) => chosen.get(x)).find((x) => x && pp.gpns.includes(x));
+    return keep && keep !== pp.preferred ? { ...pp, preferred: keep, chosenInReview: true } : pp;
+  });
+  return { ...base, physical };
+}
+
 export type Decision = 'consolidate' | 'separate' | 'check';
 export interface Review {
   decision: Decision | null;
@@ -94,7 +114,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [volumes, setVolumes] = useState<Map<string, number>>(new Map());
   const [reviews, setReviews] = useState<Record<string, Review>>(loadReviews);
   const [route, setRoute] = useState<Route>(() => parseHash(location.hash));
-  const catalog = useMemo(() => withVolumes(BASE, volumes), [volumes]);
+  const catalog = useMemo(() => withReviews(withVolumes(BASE, volumes), reviews), [volumes, reviews]);
 
   useEffect(() => {
     const on = () => setRoute(parseHash(location.hash));

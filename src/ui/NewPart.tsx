@@ -1,12 +1,12 @@
 // New part: when nothing stocked will do, build the request so its description
 // follows the standard, and show the closest stocked parts one last time.
 
-import { useMemo, useState } from 'react';
-import { Copy, ArrowLeft } from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
+import { Icon } from './Icon';
 import type { Attr, Family, Spec } from '../engine/types';
 import { ATTR_LABEL } from '../engine/types';
 import { parseQuery } from '../engine/parse';
-import { DEFAULT_SCOPE, search } from '../engine/search';
+import { DEFAULT_SCOPE, closest, search } from '../engine/search';
 import { STANDARD, standardDescription } from '../engine/standard';
 import { specToQuery, withAttr } from '../engine/query';
 import { useStore } from './store';
@@ -17,18 +17,26 @@ import { Gpn } from './Gpn';
 import { Mark } from './Mark';
 import { FAMILY_LABEL, formatValue, plural } from './format';
 import { copyText } from './toast';
-import { PartDrawer } from './PartDrawer';
+import { PartPanel, usePartPanel } from './PartDrawer';
 
 const FAMILIES: Family[] = ['screw', 'nut', 'washer', 'standoff'];
 
 export function NewPart({ q }: { q: string }) {
   const { catalog, go } = useStore();
   const [openAttr, setOpenAttr] = useState<Attr | null>(null);
-  const [drawer, setDrawer] = useState<string | null>(null);
+  const panel = usePartPanel();
+  const setDrawer = panel.open;
   const { spec } = useMemo(() => parseQuery(q), [q]);
   const family = spec.family;
   const setSpec = (next: Spec) => go({ page: 'new', q: specToQuery(next) }, true);
   const result = useMemo(() => search(catalog, spec, DEFAULT_SCOPE), [catalog, spec]);
+  const countFor = useCallback(
+    (a: Attr) => (v: string | number) => {
+      const r = search(catalog, withAttr(spec, a, v), DEFAULT_SCOPE);
+      return r.ready.length + r.close.length;
+    },
+    [catalog, spec]
+  );
   const std = family ? standardDescription(spec) : null;
 
   if (!family) {
@@ -55,9 +63,8 @@ export function NewPart({ q }: { q: string }) {
   const nRequired = required.filter((a) => val(a) !== null).length;
   const ready = result.ready;
   // Parts that match at least one detail; records that state nothing can't be compared.
-  const close = [...result.close, ...result.maybe].filter((h) => h.checks.some((c) => c.verdict === 'match' || c.verdict === 'near')).slice(0, 3);
-  const allHits = [...result.ready, ...result.close, ...result.maybe, ...result.excluded];
-  const drawerHit = drawer ? allHits.find((h) => h.part.id === drawer) ?? null : null;
+  // Nearest first: a part that differs in one detail beats one that states almost nothing.
+  const close = closest(result, 3);
 
   const field = (a: Attr, isRequired: boolean) => (
     <div key={a} className={`field-row${isRequired && val(a) === null ? ' is-empty' : ''}`}>
@@ -70,6 +77,7 @@ export function NewPart({ q }: { q: string }) {
         open={openAttr === a}
         onOpen={(o) => setOpenAttr(o ? a : null)}
         onSet={(v) => setSpec(withAttr(spec, a, v))}
+        countFor={countFor(a)}
       />
     </div>
   );
@@ -78,7 +86,7 @@ export function NewPart({ q }: { q: string }) {
     <div className="newpart">
       <header className="page-head">
         <button type="button" className="link back" onClick={() => go({ page: 'find', q })}>
-          <ArrowLeft size={15} strokeWidth={1.75} aria-hidden="true" /> Back to the search
+          <Icon name="arrow_back" size={18} /> Back to the search
         </button>
         <h1>Request a new {FAMILY_LABEL[family].toLowerCase()}</h1>
         <p>Fill in the fields and copy the description into the Agile request. It's written to the standard, so the next engineer can find this part.</p>
@@ -107,8 +115,19 @@ export function NewPart({ q }: { q: string }) {
             {std && !std.complete ? (
               <p className="draft-missing">Still needed: {std.missing.map((a) => ATTR_LABEL[a].toLowerCase()).join(', ')}.</p>
             ) : null}
-            <button type="button" className={`btn${std?.complete ? ' btn-primary' : ''}`} disabled={!std} onClick={() => std && copyText(std.text, 'the description')}>
-              <Copy size={15} strokeWidth={1.75} aria-hidden="true" /> Copy description
+            <button
+              type="button"
+              className={`btn${std?.complete ? ' btn-primary' : ''}`}
+              disabled={!std}
+              onClick={() =>
+                std &&
+                copyText(
+                  std.text,
+                  std.complete ? 'the description' : `a draft. It still needs ${std.missing.map((a) => ATTR_LABEL[a].toLowerCase()).join(', ')}`
+                )
+              }
+            >
+              <Icon name="content_copy" size={18} /> {std?.complete ? 'Copy description' : 'Copy draft'}
             </button>
             <div className="draft-drawing">
               <Drawing spec={spec} onPick={(a) => setOpenAttr(a)} />
@@ -165,7 +184,7 @@ export function NewPart({ q }: { q: string }) {
           </section>
         </div>
       </div>
-      {drawerHit ? <PartDrawer hit={drawerHit} onClose={() => setDrawer(null)} /> : null}
+      <PartPanel panel={panel} asked={spec} />
     </div>
   );
 }

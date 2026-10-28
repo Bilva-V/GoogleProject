@@ -1,6 +1,6 @@
 // A GPN in mono with a one-click copy: copying the number is the whole point of a find.
 
-import { Copy } from 'lucide-react';
+import { Icon } from './Icon';
 import { copyText } from './toast';
 
 export function Gpn({ gpn, size = 'md' }: { gpn: string; size?: 'md' | 'lg' }) {
@@ -17,7 +17,7 @@ export function Gpn({ gpn, size = 'md' }: { gpn: string; size?: 'md' | 'lg' }) {
           copyText(gpn);
         }}
       >
-        <Copy size={14} strokeWidth={1.75} aria-hidden="true" />
+        <Icon name="content_copy" size={18} />
       </button>
     </span>
   );

@@ -116,8 +116,22 @@ export function readThread(text: string): string | null {
   return null;
 }
 
+/** A screw size given without threads per inch: 'No. 8 x 1in', '#2 x 1/4', '5/16in x 1-1/2in'. */
+export function readBareSize(text: string): string | null {
+  // not a Phillips bit size (PH#2, Phillips #1)
+  const num = text.match(/(?<!PH\s?|PHIL(?:LIPS)?\s?|PHL\s?)(?:\bNo\.?\s*|#)(\d{1,2})\b(?!\s*-\s*\d)(?=\s*(?:[xX]|screws?\b|sheet|size\b|self|thread|$))/i);
+  if (num && Number(num[1]) <= 14) return `#${Number(num[1])}`;
+  const frac = text.match(/(?<![\d./-])(\d{1,2}\/\d{1,2})\s*(?:in(?:ch)?\b|")?\s*[xX]\s*\d/i);
+  if (frac) {
+    const [a, b] = frac[1].split('/').map(Number);
+    if (isFraction(a, b)) return frac[1];
+  }
+  return null;
+}
+
 export function readPitch(text: string): number | null {
-  let m = text.match(/(?<![A-Za-z0-9.])M(\d+(?:\.\d+)?)\s*[-xX]\s*(\d*\.?\d+)/i);
+  // not when the number carries an inch mark: M3X0.25" is a length
+  let m = text.match(/(?<![A-Za-z0-9.])M(\d+(?:\.\d+)?)\s*[-xX]\s*(\d*\.?\d+)(?![\d.]|\s*(?:"|in\b|inch))/i);
   if (m && isPlausiblePitch(Number(m[1]), Number(m[2]))) return Number(m[2]);
   m = text.match(/(\d*\.?\d+)\s*mm\s*pitch/i) || text.match(/pitch\s*[:=]?\s*(\d*\.?\d+)\s*mm/i);
   if (m) {
@@ -145,7 +159,7 @@ export function readLength(text: string, opts: { query?: boolean } = {}): { mm: 
   if (m) return mm(Number(m[1]));
 
   // 5/8 inch Long, .75in Length, 3/8"L, 1.75" L
-  m = text.match(new RegExp(String.raw`(?<![\d./-])${LEN}\s*(?:in(?:ch(?:es)?)?\b|")\s*(?:L|LG|long|length|lg)\b`, 'i'));
+  m = text.match(new RegExp(String.raw`(?<![\d./-])${LEN}\s*(?:in(?:ch(?:es)?)?\b\.?|")\s*(?:L|LG|long|length|lg)\b`, 'i'));
   if (m) return inch(parseNumber(m[1]));
   m = text.match(/\blength\s*[:=]?\s*(\d*\.?\d+)\s*(?:in(?:ch)?\b|")/i);
   if (m) return inch(parseNumber(m[1]));
@@ -153,6 +167,16 @@ export function readLength(text: string, opts: { query?: boolean } = {}): { mm: 
   // M3-0.5X8MM, M3x8mm, M3 x 0.5 x 6 mm
   m = text.match(/(?<![A-Za-z0-9.])M(\d+(?:\.\d+)?)(\s*[-xX]\s*\d*\.?\d+)?\s*[xX]\s*(\d+(?:\.\d+)?)\s*mm/i);
   if (m && (m[2] || !isPlausiblePitch(Number(m[1]), Number(m[3])))) return mm(Number(m[3]));
+
+  // M3X0.25": a metric thread with an inch length
+  m = text.match(new RegExp(String.raw`(?<![A-Za-z0-9.])M\d+(?:\.\d+)?\s*[xX]\s*${LEN}\s*(?:"|in(?:ch)?\b)`, 'i'));
+  if (m) return inch(parseNumber(m[1]));
+
+  // No. 8 x 1in, #2 x 1/4 in, 5/16in x 1-1/2in: a size without threads per inch
+  m = text.match(
+    new RegExp(String.raw`(?:(?:\bNo\.?\s*|#)\d{1,2}|(?<![\d./-])\d{1,2}\/\d{1,2}\s*(?:in(?:ch)?\b|")?)\s*[xX]\s*${LEN}\s*(mm|in(?:ch)?\b|")?`, 'i')
+  );
+  if (m && !/\d\s*-\s*\d{2}\s*[xX]/.test(m[0])) return m[2] && m[2].toLowerCase() === 'mm' ? mm(parseNumber(m[1])) : inch(parseNumber(m[1]));
 
   // M3x5, M5 X 12: unitless after a metric thread; not when it is the pitch
   m = text.match(/(?<![A-Za-z0-9.])M(\d+(?:\.\d+)?)\s*[xX]\s*(\d+(?:\.\d+)?)(?![\d.]|\s*[xX]|\s*mm)/i);
@@ -163,6 +187,10 @@ export function readLength(text: string, opts: { query?: boolean } = {}): { mm: 
     new RegExp(String.raw`(?:(?<![0-9./A-Za-z-])#?\d{1,2}|\d{1,2}\/\d{1,2})\s*-\s*\d{2,3}\s*[xX]\s*${LEN}\s*(mm|in(?:ch)?|"|LG|L)?(?![A-Za-z0-9])`, 'i')
   );
   if (m) return m[2] && m[2].toLowerCase() === 'mm' ? mm(parseNumber(m[1])) : inch(parseNumber(m[1]));
+
+  // 6-32 THREAD X 3/8 IN. LENGTH
+  m = text.match(new RegExp(String.raw`\bthread\s*[xX]\s*${LEN}\s*(mm|in(?:ch)?\b\.?|")`, 'i'));
+  if (m) return m[2].toLowerCase() === 'mm' ? mm(parseNumber(m[1])) : inch(parseNumber(m[1]));
 
   // Last resort: a bare '<n> mm' that is not part of the thread, a pitch, or a washer size.
   const bare = /(?<![xX-]\s*)(?<![\d.])(\d+(?:\.\d+)?)\s*mm\b(?!\s*(?:pitch|thread|id|od|i\.d|o\.d|thk|thick|dia|head|hex|drive|wide|width|panel))/i;
@@ -210,6 +238,8 @@ export function readFits(text: string, thread: string | null): string | null {
     if (frac) return `${frac[1]}in`;
     const num = thread.match(/^(\d+)-\d+$/);
     if (num) return `#${num[1]}`;
+    if (/^#\d+$/.test(thread)) return thread;
+    if (/^\d+\/\d+$/.test(thread)) return `${thread}in`;
     return thread;
   }
   let m = text.match(/(?:\bNo\.?\s*|#)(\d{1,2})\b/i);
@@ -294,10 +324,11 @@ export function parseText(raw: string, family: Family | null, opts: { query?: bo
 
   // Phrases that would fool the other readers: a square cone washer is not a
   // square drive, a nylon patch is not a nylon screw.
-  const washerPhrase = /\b(?:w\/|with)?\s*(?:square\s+cone|sq\.?\s*conical|square\s+conical|square|split\s*lock|lock|external[\s-]tooth|internal[\s-]tooth|ext\.?[\s-]tooth|int\.?[\s-]tooth|flat|plain|nylon|captive|contained|loose|conical|cone|cup|crest\s+cup)?\s*washers?\b/gi;
-  const noWasher = text.replace(washerPhrase, ' ');
+  const washerPhrase = /\b(?:w\/|with)?\s*(?:square\s+cone|sq\.?\s*conical|square\s+conical|square|split\s*lock|lock|external[\s-]tooth|internal[\s-]tooth|ext\.?[\s-]tooth|int\.?[\s-]tooth|flat|plain|nylon|plastic|captive|contained|loose|conical|cone|cup|crest\s+cup)?\s*washers?\b/gi;
+  // Collapse the gap left behind, so 'Hex Washer Head' still reads as 'Hex Head'.
+  const noWasher = text.replace(washerPhrase, ' ').replace(/ {2,}/g, ' ');
   const noShapes = noWasher.replace(/\bSQ(?:UARE)?\.?\s*(?:CONE|CONICAL|NUT|NECK|HOLE)\b/gi, ' ');
-  const noPatch = text.replace(/\bnylon\s+(?:patch|insert|washers?|lock(?:ing)?)\b|\bnylok\b|\bnylock\b/gi, ' ');
+  const noPatch = text.replace(/\bnylon\s+(?:patch|insert|washers?|lock(?:ing)?)\b|\b(?:black\s+)?plastic\s+washers?\b|\bnylok\b|\bnylock\b|\bnyloc\b/gi, ' ');
 
   spec.thread = readThread(text);
   spec.pitch = spec.thread?.startsWith('M') ? readPitch(text) : null;
@@ -309,6 +340,7 @@ export function parseText(raw: string, family: Family | null, opts: { query?: bo
   spec.kit = /\bkits?\b/i.test(text);
 
   const fam = family;
+  if (!spec.thread && fam !== 'washer' && fam !== 'nut') spec.thread = readBareSize(text);
   if (fam === 'screw' || fam === 'standoff' || fam === null) {
     const len = readLength(text, opts);
     if (len) {
@@ -338,11 +370,15 @@ export function parseText(raw: string, family: Family | null, opts: { query?: bo
   if (fam === 'nut') spec.type = findTerm(text, NUT_TYPE);
   if (fam === 'washer') {
     spec.type = findTerm(text, WASHER_TYPE);
-    const fallback: 'mm' | 'in' = /\bmm\b/i.test(text) || spec.thread?.startsWith('M') ? 'mm' : 'in';
+    spec.fits = readFits(text, spec.thread);
+    // A unit-less size in a description follows its thread; in a search it is millimetres
+    // unless the washer is for an inch screw (#8, 1/4in).
+    const inchFit = !!spec.fits && (spec.fits.startsWith('#') || spec.fits.endsWith('in'));
+    const fallback: 'mm' | 'in' =
+      /\bmm\b/i.test(text) || spec.thread?.startsWith('M') || (opts.query && !inchFit) ? 'mm' : 'in';
     spec.idMm = dim(text, String.raw`ID|I\.D\.|inner\s+dia(?:meter)?|inside\s+dia(?:meter)?`, fallback);
     spec.odMm = dim(text, String.raw`OD|O\.D\.|outer\s+dia(?:meter)?|outside\s+dia(?:meter)?`, fallback);
     spec.thicknessMm = dim(text, String.raw`THK|thick(?:ness)?|thk\.`, fallback);
-    spec.fits = readFits(text, spec.thread);
     spec.thread = null; // a washer fits a size; it has no thread of its own
     spec.pitch = null;
     spec.washer = null;
@@ -363,7 +399,7 @@ export function parseDescription(partType: string, description: string): { spec:
 
 const QUERY_FAMILY: [RegExp, Family][] = [
   [/\bwashers?\b/i, 'washer'],
-  [/\b(?:nuts?|locknuts?|inserts?)\b/i, 'nut'],
+  [/\b(?:nuts?|locknuts?|inserts?|nyloc|nylock|nylok)\b/i, 'nut'],
   [/\b(?:standoffs?|spacers?)\b/i, 'standoff'],
   [/\b(?:screws?|bolts?|shcs|bhcs|fhcs)\b/i, 'screw'],
 ];
@@ -373,14 +409,60 @@ const FILLER = new Set([
   'a', 'an', 'the', 'with', 'w', 'and', 'for', 'of', 'in', 'mm', 'inch', 'in', 'x', 'head', 'drive',
   'thread', 'long', 'length', 'size', 'need', 'i', 'looking', 'screw', 'screws', 'bolt', 'bolts', 'nut',
   'nuts', 'washer', 'washers', 'standoff', 'standoffs', 'fastener', 'fasteners', 'metric', 'imperial',
+  'id', 'od', 'i.d', 'o.d', 'i.d.', 'o.d.', 'thk', 'thick', 'thickness', 'dia', 'diameter', 'inner', 'outer',
+  'no', 'no.', 'pack', 'of',
 ]);
+
+/** Words engineers use that Agile descriptions don't record, so they can't narrow a search. */
+const NOT_RECORDED = new Set(['female', 'male', 'm/f', 'f/f', 'm-f', 'f-f', 'thru-hole', 'through-hole', 'blind', 'keyhole']);
+
+const VOCAB_WORDS: string[] = (() => {
+  const words = new Set<string>();
+  for (const table of [HEAD, DRIVE, MATERIAL, FINISH, BUILT_IN_WASHER, WASHER_TYPE, SCREW_TYPE, NUT_TYPE]) {
+    for (const [canonical, variants] of table) {
+      for (const w of [canonical, ...variants]) for (const part of w.toLowerCase().split(/[\s/,-]+/)) if (part.length >= 4 && /^[a-z]+$/.test(part)) words.add(part);
+    }
+  }
+  for (const w of ['screw', 'bolt', 'washer', 'standoff', 'nut', 'spacer', 'nyloc']) words.add(w);
+  return [...words];
+})();
+
+function editDistance(a: string, b: string): number {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++)
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length][b.length];
+}
+
+/** The vocabulary word a mistyped word was probably meant to be: 'phillps' → 'phillips'. */
+export function suggestWord(word: string): string | null {
+  const w = word.toLowerCase();
+  if (w.length < 4 || !/^[a-z]+$/.test(w)) return null;
+  let best: { word: string; d: number } | null = null;
+  for (const v of VOCAB_WORDS) {
+    if (Math.abs(v.length - w.length) > 2) continue;
+    const d = editDistance(w, v);
+    if (d <= (w.length >= 7 ? 2 : 1) && (!best || d < best.d)) best = { word: v, d };
+  }
+  return best?.word ?? null;
+}
 
 /**
  * Parse what an engineer types: "m3 x 8 pan torx stainless", "#6-32 x 1/4 flat phillips",
  * "m5 split lock washer". Returns the spec and the words nothing understood, so the UI
  * can say so instead of silently dropping them.
  */
-export function parseQuery(raw: string): { spec: Spec; unread: string[] } {
+export interface QueryRead {
+  spec: Spec;
+  /** words nothing understood */
+  unread: string[];
+  /** words the catalogue can't search on because descriptions don't record them */
+  notRecorded: string[];
+}
+
+export function parseQuery(raw: string): QueryRead {
   const text = clean(raw);
   // The noun said first decides: 'screw with a split lock washer' is a screw.
   let family: Family | null = null;
@@ -395,6 +477,12 @@ export function parseQuery(raw: string): { spec: Spec; unread: string[] } {
     if (spec.head || spec.drive || spec.lengthMm !== null) family = 'screw';
     if (family) spec = parseText(text, family, { query: true });
   }
+  // 'M3 SHCS 10': a lone number after a metric size is its length in millimetres.
+  if ((spec.family === 'screw' || spec.family === 'standoff') && spec.lengthMm === null && spec.thread?.startsWith('M')) {
+    const lone = [...text.matchAll(/(?<![\w./#"-])(\d+(?:\.\d+)?)(?![\w./"%-])/g)].map((m) => Number(m[1]));
+    const len = lone.filter((n) => n >= 2 && n <= 300 && n !== spec.pitch).pop();
+    if (len !== undefined) spec = { ...spec, lengthMm: len, lengthImperial: false };
+  }
 
   const understood = (word: string) => {
     const w = word.toLowerCase();
@@ -408,9 +496,11 @@ export function parseQuery(raw: string): { spec: Spec; unread: string[] } {
     }
     return false;
   };
-  const unread = text
+  const words = text
     .split(/[\s,;]+/)
     .map((w) => w.replace(/^[(]+|[)]+$/g, ''))
     .filter((w) => w && !understood(w));
-  return { spec, unread };
+  const notRecorded = words.filter((w) => NOT_RECORDED.has(w.toLowerCase()));
+  const unread = words.filter((w) => !NOT_RECORDED.has(w.toLowerCase()));
+  return { spec, unread, notRecorded };
 }

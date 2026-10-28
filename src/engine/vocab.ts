@@ -5,8 +5,8 @@
 export type Table = ReadonlyArray<readonly [canonical: string, variants: readonly string[]]>;
 
 export const HEAD: Table = [
-  ['pan', ['PANHEAD', 'PAN HEAD', 'PAN-HEAD', 'PAN HD', 'PHP', 'PHMS', 'PHCS', 'PAN']],
-  ['flat', ['FLATHEAD', 'FLAT HEAD', 'FLAT HD', 'FHCS', 'COUNTERSUNK', 'CSK', '100 DEGREE', '100°', '82 DEGREE', '82°', '120°']],
+  ['pan', ['PANHEAD', 'PAN HEAD', 'PAN-HEAD', 'PAN HD', 'PHP', 'PHMS', 'PHCS', 'PN PHL', 'PN PH', 'PAN']],
+  ['flat', ['FLATHEAD', 'FLAT HEAD', 'FLAT HD', 'FHCS', 'FH PHL', 'FH PH', 'COUNTERSUNK', 'CSK', '100 DEGREE', '100°', '82 DEGREE', '82°', '120°']],
   ['button', ['BUTTON HEAD', 'BUTTON HD', 'BHCS', 'BUTTON']],
   ['socket', ['SOCKET HEAD', 'SOCKET HD', 'SHCS', 'SOCKET CAP', 'CAP HEAD', 'CAP HD']],
   ['truss', ['TRUSS-HEAD', 'TRUSS HEAD', 'TRUSS HD', 'TRUST HEAD', 'TRUSS']],
@@ -22,9 +22,9 @@ export const HEAD: Table = [
 ];
 
 export const DRIVE: Table = [
-  ['combo', ['PHILLIPS/SLOT', 'SLOTTED & PHILLIPS', 'SLOT/PHIL', 'COMBO', 'COMBINATION']],
+  ['combo', ['PHILLIPS/SLOT', 'SLOTTED & PHILLIPS', 'SLOT/PHIL', 'HEX/SLOTTED', 'HEX/SLOT', 'SLOTTED HEX', 'COMBO', 'COMBINATION']],
   ['torx', ['TORX', 'HEXALOBULAR', '6 LOBE', '6-LOBE', 'SIX LOBE']],
-  ['phillips', ['PHILLIPS', 'PHILIPS', 'PHLPS', 'PHIL', 'PHL', 'PHP', 'CROSS RECESS', 'CROSS HEAD']],
+  ['phillips', ['PHILLIPS', 'PHILIPS', 'PHLPS', 'PHIL', 'PHL', 'PHP', 'PN PH', 'FH PH', 'CROSS RECESS', 'CROSS HEAD']],
   ['hex', ['HEX SOCKET', 'HEX DRIVE', 'HEX RECESS', 'HEX KEY', 'ALLEN', 'SHCS', 'BHCS', 'FHCS']],
   ['pozi', ['POZIDRIV', 'POZI']],
   ['square', ['SQUARE DRIVE', 'SQUARE RECESS', 'ROBERTSON', 'SQUARE']],
@@ -70,7 +70,8 @@ export const BUILT_IN_WASHER: Table = [
   ['square cone', ['SQUARE CONE', 'SQUARE CONICAL', 'SQ CONICAL', 'SQ CONE', 'CONICAL', 'CONE WASHER']],
   ['split lock', ['SPLIT LOCK', 'SPLIT-LOCK', 'SPRING LOCK', 'LOCK WASHER', 'SPLIT WASHER']],
   ['flat', ['FLAT WASHER', 'PLAIN WASHER']],
-  ['nylon', ['NYLON WASHER', 'PLASTIC WASHER']],
+  ['nylon', ['NYLON WASHER']],
+  ['plastic', ['PLASTIC WASHER']],
   ['belleville', ['BELLEVILLE', 'BELLVILLE']],
   ['captive', ['SEMS', 'SEM', 'CAPTIVE WASHER', 'CAPTIVE  WASHER', 'CONTAINED WASHER', 'LOOSE WASHER', 'W/ WASHER', 'W/WASHER', 'WITH WASHER', 'WASHER INCLUDED', 'INTEGRATED WASHER', 'INTEGRAL WASHER']],
 ];
@@ -92,7 +93,7 @@ export const WASHER_TYPE: Table = [
 export const SCREW_TYPE: Table = [
   ['shoulder', ['SHOULDER']],
   ['set', ['SET SCREW', 'SET,', 'HEADLESS', 'CUP-POINT', 'CUP POINT']],
-  ['self-tapping', ['SELF TAPPING', 'SELF-TAPPING', 'THREAD FORMING', 'THREAD-FORMING', 'SHEET METAL', 'TAPPING']],
+  ['self-tapping', ['SELF TAPPING', 'SELF-TAPPING', 'THREAD FORMING', 'THREAD-FORMING', 'SHEET METAL', 'SHEETMETAL', 'TAPPING']],
   ['captive panel', ['CAPTIVE SCREW', 'CAPTIVE PANEL', 'SCREW, CAPTIVE', 'FLARE-IN']],
   ['thumb', ['THUMB']],
   ['rack', ['RACK SCREW', 'RACK SCREWS', 'PILOT POINT', 'CAGE BOLT', 'CAGE BOLTS']],
@@ -103,7 +104,7 @@ export const SCREW_TYPE: Table = [
 export const NUT_TYPE: Table = [
   ['cage', ['CAGE NUT', 'CAGE NUTS', 'CAGE', 'CLIK-NUT']],
   ['kep', ['KEPS', 'KEP']],
-  ['nylon lock', ['NYLOCK', 'NYLON INSERT', 'NYLON LOCK', 'NYLON LOCKING', 'PREVAILING TORQUE']],
+  ['nylon lock', ['NYLOCK', 'NYLOC', 'NYLOK', 'NYLON INSERT', 'NYLON LOCK', 'NYLON LOCKING', 'PREVAILING TORQUE']],
   ['press-in', ['PRESS IN', 'PRESS-IN', 'SELF-CLINCHING', 'SELF CLINCHING', 'CLINCH', 'THREADED INSERT', 'INSERT']],
   ['broaching', ['BROACHING']],
   ['rivet nut', ['RIVET NUT', 'RIVNUT']],

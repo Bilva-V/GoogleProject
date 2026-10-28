@@ -2,7 +2,8 @@ import type { Catalog, PartRecord, Phase } from '../src/engine/types';
 import { parseDescription, parseQuery } from '../src/engine/parse';
 import { findGroups, normDesc, physicalParts } from '../src/engine/groups';
 import { computeHealth } from '../src/engine/health';
-import { DEFAULT_SCOPE, check, search } from '../src/engine/search';
+import { DEFAULT_SCOPE, check, closest, findByNumber, numberSuggestions, search } from '../src/engine/search';
+import { withReviews } from '../src/ui/store';
 import { inchFraction, standardDescription } from '../src/engine/standard';
 
 let n = 0;
@@ -141,5 +142,35 @@ describe('the search line round-trips', () => {
       }
     }
     expect(failures.slice(0, 15)).toEqual([]);
+  });
+});
+
+describe('found in the demo run (Oct 28)', () => {
+  it('treats #8 as the general form of 8-32', () => {
+    expect(check('thread', '#8', '8-32')).toBe('match');
+    expect(check('thread', '8-32', '#8')).toBe('unknown');
+    expect(check('thread', '#8', '10-32')).toBe('differs');
+  });
+  it('suggests a GPN whose leading zero was dropped, without matching it', () => {
+    const c = catalog([rec('07070024', 'Screw, M3x5, PHP')]);
+    expect(findByNumber(c, '7070024')).toHaveLength(0);
+    expect(numberSuggestions(c, '7070024')).toEqual([{ typed: '7070024', gpn: '07070024' }]);
+  });
+  it('lists the part that differs in one detail before one that states almost nothing', () => {
+    const c = catalog([
+      rec('3001', 'Screw, M3x0.5mm Thread, 8mm Long, Pan Head, Torx, Steel'),
+      rec('3002', 'Screws, M3, Cooler Master'),
+    ]);
+    const r = search(c, parseQuery('m3 x 8 pan torx brass').spec, DEFAULT_SCOPE);
+    expect(closest(r).map((h) => h.part.preferred)).toEqual(['3001', '3002']);
+  });
+  it('a reviewer’s kept GPN becomes the one Find recommends', () => {
+    const c = catalog([
+      rec('4001', 'Screw, M3x0.5mm Thread, 8mm Long, Pan Head, Torx, Steel'),
+      rec('4002', 'Screw, M3x0.5mm Thread, 8mm Long, Pan Head, Torx, Steel', { phase: 'Prototype' }),
+    ]);
+    expect(c.physical[0].preferred).toBe('4001');
+    const reviewed = withReviews(c, { [c.groups[0].id]: { decision: 'consolidate', preferred: '4002', note: '' } });
+    expect(reviewed.physical[0]).toMatchObject({ preferred: '4002', chosenInReview: true });
   });
 });

@@ -3,7 +3,7 @@
 // goes back to whatever opened it.
 
 import { ReactNode, useEffect, useRef } from 'react';
-import { X } from 'lucide-react';
+import { Icon } from './Icon';
 
 interface Props {
   label: string;
@@ -35,7 +35,7 @@ export function Sheet({ label, onClose, children, variant = 'side' }: Props) {
       <div className="sheet-backdrop" onClick={onClose} aria-hidden="true" />
       <div className="sheet" role="dialog" aria-modal="true" aria-label={label} tabIndex={-1} ref={panel}>
         <button type="button" className="icon-btn sheet-close" onClick={onClose} aria-label="Close">
-          <X size={18} strokeWidth={1.75} aria-hidden="true" />
+          <Icon name="close" size={20} />
         </button>
         {children}
       </div>

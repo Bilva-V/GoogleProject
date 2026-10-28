@@ -2,7 +2,8 @@
 // Google decided to do with that kind. A reviewer confirms or overrides each one;
 // decisions stay in this browser and export as CSV for the Agile change request.
 
-import { Download } from 'lucide-react';
+import { useState } from 'react';
+import { Icon } from './Icon';
 import type { Group, GroupKind, PartRecord } from '../engine/types';
 import { ATTR_LABEL } from '../engine/types';
 import { useStore, Decision, Review } from './store';
@@ -23,6 +24,11 @@ export function Cleanup({ kind }: { kind: GroupKind }) {
   const groups = catalog.groups.filter((g) => g.kind === kind);
   const reviewed = (g: Group) => Boolean(reviews[g.id]?.decision);
   const done = groups.filter(reviewed).length;
+  // Groups decided while the filter is on stay in view until the filter is turned off,
+  // so a decision doesn't make the card jump away under the pointer.
+  const [unreviewedOnly, setUnreviewedOnly] = useState(false);
+  const [seen, setSeen] = useState<Set<string>>(new Set());
+  const shown = unreviewedOnly ? groups.filter((g) => !reviewed(g) || seen.has(g.id)) : groups;
   const allDone = catalog.groups.filter(reviewed).length;
 
   const exportCsv = () => {
@@ -55,7 +61,7 @@ export function Cleanup({ kind }: { kind: GroupKind }) {
           </p>
         </div>
         <button type="button" className="btn" onClick={exportCsv}>
-          <Download size={15} strokeWidth={1.75} aria-hidden="true" /> Export decisions
+          <Icon name="download" size={18} /> Export decisions
         </button>
       </header>
 
@@ -92,9 +98,25 @@ export function Cleanup({ kind }: { kind: GroupKind }) {
         </p>
       </div>
 
-      {groups.length ? (
+      {groups.length > 3 ? (
+        <label className="check filter-toggle">
+          <input
+            type="checkbox"
+            checked={unreviewedOnly}
+            onChange={(e) => {
+              setUnreviewedOnly(e.target.checked);
+              setSeen(new Set(groups.filter((g) => !reviewed(g)).map((g) => g.id)));
+            }}
+          />
+          Unreviewed only
+        </label>
+      ) : null}
+
+      {unreviewedOnly && !shown.length ? (
+        <p className="empty-box">Every group of this kind has a decision. Export them, or turn off the filter to change one.</p>
+      ) : groups.length ? (
         <div className="groups">
-          {groups.map((g) => (
+          {shown.map((g) => (
             <GroupCard key={g.id} group={g} review={reviews[g.id]} />
           ))}
         </div>
@@ -120,6 +142,13 @@ function GroupCard({ group: g, review }: { group: Group; review?: Review }) {
       </header>
 
       <table className="members">
+        <colgroup>
+          <col className="col-keep" />
+          <col className="col-gpn" />
+          <col />
+          <col className="col-phase" />
+          <col className="col-ordered" />
+        </colgroup>
         <thead>
           <tr>
             <th scope="col" className="col-keep">Keep</th>
@@ -180,6 +209,7 @@ function GroupCard({ group: g, review }: { group: Group; review?: Review }) {
               className={decision === d.id ? 'is-current' : ''}
               onClick={() => setReview(g.id, { decision: decision === d.id ? null : d.id, preferred: keep })}
             >
+              {decision === d.id ? <Icon name="check" size={18} /> : null}
               {d.label}
               {d.id === suggested && !decision ? <span className="suggested"> (suggested)</span> : null}
             </button>

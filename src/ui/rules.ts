@@ -48,7 +48,7 @@ export function groupSummary(g: Group): string {
       if (g.evidence === 'same specs except one size') return g.detail ?? 'One size differs slightly';
       return `Same supplier part number ${g.detail}; one size differs slightly`;
     case 'variant':
-      return `Base ${g.detail ?? ''}; differ in ${diffs.join(', ') || 'detail'}`.trim();
+      return `Supplier part numbers both start ${(g.detail ?? '').replace(/…$/, '')}; the ${diffs.join(', ') || 'detail'} ${diffs.length > 1 ? 'differ' : 'differs'}`;
     case 'conflict':
       return `Both cite ${g.detail ?? 'one part number'}; disagree on ${diffs.join(', ') || 'detail'}`;
   }

@@ -1,7 +1,7 @@
 // Health: how findable the fastener catalogue is, and where the volumes come in.
 
 import { useRef, useState } from 'react';
-import { Upload } from 'lucide-react';
+import { Icon } from './Icon';
 import type { Attr, Family, GroupKind } from '../engine/types';
 import { ATTR_LABEL } from '../engine/types';
 import { KEY_FIELDS } from '../engine/health';
@@ -200,7 +200,7 @@ function Volumes() {
           load(e.dataTransfer.files[0]);
         }}
       >
-        <Upload size={18} strokeWidth={1.75} aria-hidden="true" />
+        <Icon name="upload" size={20} />
         <p>
           Drop a CSV with two columns, <code>GPN,Volume</code>, or{' '}
           <button type="button" className="link" onClick={() => input.current?.click()}>

@@ -1,6 +1,6 @@
 // The shell: the mark, four places to go, and the state of the data.
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useStore, Route } from './store';
 import { Find, SEARCH_INPUT_ID } from './Find';
 import { NewPart } from './NewPart';
@@ -8,13 +8,14 @@ import { Cleanup } from './Cleanup';
 import { HealthPage } from './Health';
 import { StandardPage } from './Standard';
 import { Toaster } from './toast';
+import { Icon, IconName } from './Icon';
 
-const NAV: { page: Route['page']; label: string; to: Route }[] = [
-  { page: 'find', label: 'Find', to: { page: 'find', q: '' } },
-  { page: 'new', label: 'New part', to: { page: 'new', q: '' } },
-  { page: 'cleanup', label: 'Clean up', to: { page: 'cleanup', kind: 'duplicate' } },
-  { page: 'health', label: 'Health', to: { page: 'health' } },
-  { page: 'standard', label: 'Standard', to: { page: 'standard' } },
+const NAV: { page: Route['page']; label: string; icon: IconName; to: Route }[] = [
+  { page: 'find', label: 'Find', icon: 'manage_search', to: { page: 'find', q: '' } },
+  { page: 'new', label: 'New part', icon: 'add_circle', to: { page: 'new', q: '' } },
+  { page: 'cleanup', label: 'Clean up', icon: 'cleaning_services', to: { page: 'cleanup', kind: 'duplicate' } },
+  { page: 'health', label: 'Health', icon: 'monitoring', to: { page: 'health' } },
+  { page: 'standard', label: 'Standard', icon: 'rule', to: { page: 'standard' } },
 ];
 
 export function Mark() {
@@ -28,6 +29,9 @@ export function Mark() {
 
 export function App() {
   const { route, go, catalog, volumes } = useStore();
+  // Find in the rail returns to the last search rather than wiping it.
+  const lastFind = useRef('');
+  if (route.page === 'find') lastFind.current = route.q;
 
   // "/" jumps to the search from anywhere, as in most search tools.
   useEffect(() => {
@@ -62,29 +66,36 @@ export function App() {
           <Mark />
           <span>Fastener Finder</span>
         </a>
-        <nav className="nav" aria-label="Sections">
-          {NAV.map((n) => (
-            <a
-              key={n.page}
-              href={`#/${n.page}`}
-              aria-current={route.page === n.page ? 'page' : undefined}
-              onClick={(e) => {
-                e.preventDefault();
-                go(n.to);
-              }}
-            >
-              {n.label}
-            </a>
-          ))}
-        </nav>
         <p className="data-stamp">
           <span className="num">{catalog.health.inScope.toLocaleString('en-US')}</span> GPNs from the Oct 2026 Agile export
-          <span className="data-sep" aria-hidden="true" />
-          <a href="#/health" onClick={(e) => { e.preventDefault(); go({ page: 'health' }); }} className={volumes.size ? 'is-loaded' : ''}>
+          <a href="#/health" onClick={(e) => { e.preventDefault(); go({ page: 'health' }); }} className={`stamp-chip${volumes.size ? ' is-loaded' : ''}`}>
+            {volumes.size ? <Icon name="check" size={18} /> : null}
             {volumes.size ? `Volumes for ${volumes.size.toLocaleString('en-US')} GPNs` : 'No volumes loaded'}
           </a>
         </p>
       </header>
+      {/* Navigation rail on wide screens, navigation bar at the bottom on phones. */}
+      <nav className="rail" aria-label="Sections">
+        {NAV.map((n) => {
+          const current = route.page === n.page;
+          return (
+            <a
+              key={n.page}
+              href={`#/${n.page}`}
+              aria-current={current ? 'page' : undefined}
+              onClick={(e) => {
+                e.preventDefault();
+                go(n.page === 'find' ? { page: 'find', q: lastFind.current } : n.to);
+              }}
+            >
+              <span className="rail-pill">
+                <Icon name={current ? (`${n.icon}-fill` as IconName) : n.icon} size={24} />
+              </span>
+              <span className="rail-label">{n.label}</span>
+            </a>
+          );
+        })}
+      </nav>
       <main id="main" className={`page page-${route.page}`}>
         {route.page === 'find' ? <Find q={route.q} /> : null}
         {route.page === 'new' ? <NewPart q={route.q} /> : null}

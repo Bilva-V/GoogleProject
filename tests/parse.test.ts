@@ -147,3 +147,41 @@ describe('lengths', () => {
     expect(readLength('Nut, Hex, M8x1.25, Steel')).toBeNull();
   });
 });
+
+describe('found in the demo run (Oct 28)', () => {
+  it('reads a length written after the word thread', () => {
+    expect(screw('SCREW, PHILLIPS FLATHEAD, 6-32 THREAD X 3/8 IN. LENGTH, STAINLESS STEEL')).toMatchObject({
+      thread: '6-32', lengthMm: 9.525, head: 'flat', drive: 'phillips',
+    });
+  });
+  it('reads screw sizes given without threads per inch', () => {
+    expect(screw('Screw, Sheetmetal, No. 8 x 1in L, Washer Hex Head, Hex/Slotted Drive, Steel, Zinc Plated')).toMatchObject({
+      thread: '#8', lengthMm: 25.4, type: 'self-tapping', head: 'hex', drive: 'combo',
+    });
+    expect(screw('Screw, Self Tapping, No 2 x 1/4 in, Pan Head, Phillips, ZStl, RoHS')).toMatchObject({ thread: '#2', lengthMm: 6.35 });
+    expect(screw('Screw, Self-Tapping, 5/16in x 1-1/2in, Hex Drive, Hex Washer Head, Grade 5')).toMatchObject({ thread: '5/16', lengthMm: 38.1 });
+  });
+  it('reads a hex washer head as a hex head', () => {
+    expect(screw('Screw, Self-Tapping, 5/16in x 1-1/2in, Hex Drive, Hex Washer Head, Grade 5').head).toBe('hex');
+  });
+  it('does not take a Phillips bit size for a screw size', () => {
+    expect(screw('Screw, M3, Thread legnth 4mm, PH#2, Cone Washer 6.35mm').thread).toBe('M3');
+  });
+  it('reads PN PH abbreviations and an inch length after a metric thread', () => {
+    expect(screw('SCREW WASHER M3X0.25" PN PH STL ZN')).toMatchObject({ thread: 'M3', pitch: null, lengthMm: 6.35, head: 'pan', drive: 'phillips' });
+  });
+  it('keeps a plastic washer plastic, and not the screw', () => {
+    expect(screw('Screws, Steel, Cross head with plastic washer (Black), Diameter M6 X 16')).toMatchObject({ washer: 'plastic', material: 'steel' });
+    expect(screw('Screws, Cross Head, Finishing Plastic Washer, M5 x 16mm').material).toBeNull();
+  });
+  it('reads a unit-less washer size in a search as millimetres', () => {
+    expect(parseQuery('washer 5.3 id').spec.idMm).toBe(5.3);
+    expect(parseQuery('washer 5.3 id').unread).toEqual([]);
+    expect(parseQuery('#8 washer .17 id').spec.idMm).toBeCloseTo(4.318);
+  });
+  it('reads shop words and a lone length', () => {
+    expect(parseQuery('m4 nyloc').spec).toMatchObject({ family: 'nut', type: 'nylon lock', thread: 'M4' });
+    expect(parseQuery('M3 SHCS 10').spec).toMatchObject({ head: 'socket', lengthMm: 10 });
+    expect(parseQuery('m3 standoff female')).toMatchObject({ unread: [], notRecorded: ['female'] });
+  });
+});

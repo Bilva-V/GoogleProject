@@ -171,6 +171,8 @@ export interface PhysicalPart {
   gpns: string[];
   /** the preferred record's spec, filled in from aliases where it is silent and they agree */
   spec: Spec;
+  /** the preferred GPN was picked by a reviewer in Clean up, not by the rules */
+  chosenInReview?: boolean;
 }
 
 export interface Health {
