@@ -124,5 +124,5 @@ src/engine/      parser, grouping, search, standard, health (pure TypeScript)
 src/ui/          React screens: Find, NewPart, Cleanup, Health, Standard, part panel, drawing
 src/styles/      Material 3 styling (Google Sans, light and dark)
 tests/           Vitest suites
-docs/            demo-golden-path.md (demo script), BUILD_GUIDE.md (plan, milestones, design notes)
+docs/            WORKFLOW.md (workflow diagram), demo-golden-path.md (demo script), BUILD_GUIDE.md (plan, milestones, design notes)
 ```
